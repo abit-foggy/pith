@@ -5,18 +5,83 @@ Statements are newline-delimited; blocks close with a single `end`.
 
 ## Statements
 
-### Assignment
+### Variable declaration
 
-`name = expr` declares a new variable when the name exists nowhere in
-any enclosing scope; it reassigns when the name already exists:
+`name = expr` declares an **immutable** variable. The `mut` modifier
+makes it mutable:
 
 ```pith
-x = 10          # declaration: x doesn't exist yet
-x = x + 5       # reassignment: x exists in this scope
+x = 10          # immutable — reassigning is a compile error
+mut y = 20      # mutable — can be reassigned
 ```
 
-No `let`, `var`, or type annotations. Names must be `lowerCamelCase`
- the compiler warns on a capital first letter.
+Reassigning an immutable variable:
+
+```pith
+x = 10
+x = 20          # error: cannot assign twice to immutable variable `x`
+```
+
+### Explicit types
+
+`name : type = expr` declares a variable with an explicit sized type:
+
+```pith
+byte: u8 = 200
+half: i16 = -1000
+quad: i32 = 100000
+wide: u64 = 42
+flt: f32 = 1.5
+precise: f64 = 3.14159265358979
+
+mut counter: u32 = 0     # mutable + typed
+```
+
+Available types:
+
+| Type | Size | Range |
+|---|---|---|
+| `i8` | 1 byte | -128 to 127 |
+| `u8` | 1 byte | 0 to 255 |
+| `i16` | 2 bytes | -32768 to 32767 |
+| `u16` | 2 bytes | 0 to 65535 |
+| `i32` | 4 bytes | -2147483648 to 2147483647 |
+| `u32` | 4 bytes | 0 to 4294967295 |
+| `i64` | 8 bytes | -9223372036854775808 to 9223372036854775807 |
+| `u64` | 8 bytes | 0 to 18446744073709551615 (up to INT64_MAX in v0.1) |
+| `f32` | 4 bytes | IEEE 754 single-precision |
+| `f64` | 8 bytes | IEEE 754 double-precision |
+
+Without an explicit type, integers default to `i64` and floats to `f64`.
+
+### Static bounds checking
+
+Literals assigned to explicitly typed variables are checked at compile
+time:
+
+```pith
+val: u8 = 256     # error: literal is out of range for type u8
+val: u8 = -1      # error: unsigned type u8 cannot hold a negative value
+val: i8 = 128     # error: literal is out of range for type i8
+```
+
+### Storage and wrapping
+
+Sized values are stored at their declared width and truncated on
+writeback. Arithmetic always happens at 64-bit, so wrapping occurs
+when the result is stored back:
+
+```pith
+mut b: u8 = 255
+b = b + 1         # b is now 0 (wraps via storeb truncation)
+
+mut s: i8 = 127
+s = s + 1         # s is now -128 (wraps via storeb + loadsb)
+```
+
+Loads sign-extend or zero-extend to the full 64-bit register for
+arithmetic. Unsigned types (`u8`, `u16`, `u32`) zero-extend; signed
+types (`i8`, `i16`, `i32`) sign-extend.
 
 ### print
 
@@ -72,10 +137,8 @@ else
 end
 ```
 
-No parentheses, no colons, the condition is just an expression
-followed by a newline. Blocks may nest up to 256 levels (the
-compiler rejects deeper nesting with a clean diagnostic, not a stack
-overflow) and may be empty.
+No parentheses, no colons. The condition is just an expression followed
+by a newline. Blocks may nest up to 256 levels and may be empty.
 
 ## Expressions
 
@@ -90,19 +153,18 @@ overflow) and may be empty.
 | Unary | `-` (negation) |
 | Postfix | `.` (member access), `(...)` (call) |
 
-Parentheses group subexpressions (up to 128 levels).
-
 ### Types
 
 | Pith type | QBE type | Size |
 |---|---|---|
-| integer | `l` | 64-bit signed two's-complement |
-| float | `d` | IEEE 754 double |
+| integer (default) | `l` | 64-bit signed two's-complement |
+| float (default) | `d` | IEEE 754 double |
 | string | `l` (pointer) | Refcounted `PithValue` |
 | boolean | `w` | 32-bit (0 or 1) |
 
 Mixed int/float arithmetic promotes the int to float. String `+`
-concatenates; numeric `+` adds.
+concatenates; numeric `+` adds. Small integer types (i8, u8, etc.)
+are promoted to 64-bit when loaded for arithmetic.
 
 ### String literals
 
@@ -152,11 +214,11 @@ Errors use rustc-style output with source preview, line numbers, and
 a colored caret:
 
 ```
-error: use of undeclared identifier `undefinedVar`
-  --> script.pi:1:7
+error: cannot assign twice to immutable variable `x` (declare with `mut` to reassign)
+  --> script.pi:3:1
    |
- 1 | print undefinedVar
-   |       ^~~~~~~~~~~~
+ 3 | x = 20
+   | ^
 ```
 
 ## Builtins

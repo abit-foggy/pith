@@ -16,6 +16,29 @@ Pith is bracketless: blocks open with `if`/`fn` and close with a
 single `end`. No semicolons, no colons after conditions. Statements
 are newline-delimited.
 
+## Variables and types
+
+Variables are **immutable by default**. Use `mut` for reassignment:
+
+```pith
+x = 10          # immutable
+mut y = 20      # mutable
+y = y + 5       # ok
+```
+
+Assign explicit sized types with `name : type = expr`:
+
+```pith
+mut byte: u8 = 255
+byte = byte + 1
+if byte == 0
+    print "wrapped!"
+end
+```
+
+See the [Language Reference](/language) for all types and wrapping
+semantics.
+
 ## Run it
 
 ```sh
@@ -28,8 +51,7 @@ hello, pith!
 
 This takes the instant pipeline: lex → parse → QBE IR → `qbe` →
 assembly → **libtcc in-memory** → executed natively. No temp
-executable, no heavyweight compiler driver, the compiled object is
-loaded directly into host memory.
+executable, no heavyweight compiler driver.
 
 ## Build a standalone binary
 
@@ -73,9 +95,10 @@ export function w $main() {
 ```
 
 Notice:
-- `alloc8 8`, every variable lives in its own stack slot
-- `call $pith_str_concat`, the `+` operator on strings lowered to a runtime call
-- `call $pith_release`, deterministic ARC at the scope boundary (the `end`)
+- `alloc8 8` — every variable lives in its own stack slot (sized
+  types use `alloc4` for 1-4 byte storage)
+- `call $pith_str_concat` — string `+` lowered to a runtime call
+- `call $pith_release` — deterministic ARC at the scope boundary
 
 ## Import C code
 
@@ -123,6 +146,6 @@ See [C Imports (FFI)](/ffi) for the full ABI contract and type mapping.
 
 ## Next steps
 
-- [Setting Up a Project](/getting-started/project-setup), pith.toml, multi-file builds, tasks
-- [Language Reference](/language), complete syntax and semantics
-- [CLI Reference](/cli/run), every command in detail
+- [Setting Up a Project](/getting-started/project-setup) — pith.toml, multi-file builds, tasks
+- [Language Reference](/language) — complete syntax, types, and mutability
+- [CLI Reference](/cli/run) — every command in detail

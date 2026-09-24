@@ -35,6 +35,13 @@ struct PithValue {
 | Event | Emitted instruction |
 |---|---|
 | Declaration (`name = "heap" + "-string"`) | `alloc8` + `storel` |
+| Declaration (sized: `name : u8 = 200`) | `alloc4` + `storeb` |
+| Declaration (sized: `name : f32 = 1.5`) | `alloc4` + `stores` |
+| Load (sized: `u8` variable) | `loadub` (zero-extend to 64-bit) |
+| Load (sized: `i8` variable) | `loadsb` (sign-extend to 64-bit) |
+| Load (sized: `f32` variable) | `loads` + `exts` (single → double) |
+| Store (sized: `u8` variable) | `storeb` (truncate to low byte) |
+| Store (sized: `f32` variable) | `truncd` + `stores` (double → single) |
 | Scope exit (`end`) | `loadl` + `call $pith_release` |
 | Reassignment (ARC value overwritten) | `loadl` + `call $pith_release` on the old value |
 | Borrow-to-own (`y = x` where `x` is ARC) | `call $pith_retain` on the new owner |
@@ -60,6 +67,29 @@ data $str.1 = { w 1, h 3, h 1, w 6, w 5, b "linux", b 0 }
 
 `pithRetain` and `pithRelease` are **no-ops** on static-flagged values
  they are immortal and never freed.
+
+## Sized storage
+
+Variables declared with explicit types (`name : u8 = 200`) get
+right-sized stack allocations:
+
+| Type | Allocation | Store instruction | Load instruction |
+|---|---|---|---|
+| `i8` / `u8` | `alloc4 4` | `storeb` | `loadsb` (sign-extend) / `loadub` (zero-extend) |
+| `i16` / `u16` | `alloc4 4` | `storeh` | `loadsh` / `loaduh` |
+| `i32` / `u32` | `alloc4 4` | `storew` | `loadsw` / `loaduw` |
+| `i64` / `u64` | `alloc8 8` | `storel` | `loadl` |
+| `f32` | `alloc4 4` | `truncd` + `stores` | `loads` + `exts` |
+| `f64` | `alloc8 8` | `stored` | `loadd` |
+
+Arithmetic always happens at 64-bit: values are widened to full
+registers when loaded, and truncated back to the storage width when
+stored. Wrapping falls out naturally:
+
+```pith
+mut b: u8 = 255
+b = b + 1        # stored as 0x00 via storeb; loads as 0
+```
 
 ## Cycle mitigation
 
