@@ -1,0 +1,47 @@
+# ARC stress: exercise retain/release paths heavily
+s = "first"
+s = s + " + second"
+s = s + " + third"
+s = s + " + fourth"
+if s == "first + second + third + fourth"
+    print "arc: chain ok"
+else
+    print "arc: chain BROKEN"
+end
+
+s = "reset"
+if s == "reset"
+    print "arc: reassign ok"
+else
+    print "arc: reassign BROKEN"
+end
+
+a = "copy"
+b = a
+if b == "copy"
+    print "arc: copy ok"
+else
+    print "arc: copy BROKEN"
+end
+
+c = os.identifyKernel
+if c == "linux"
+    print "arc: runtime string ok"
+else
+    print "arc: runtime string BROKEN"
+end
+
+d = os.identifyKernel
+d = d + "!"
+if d == "linux!"
+    print "arc: runtime reassign ok"
+else
+    print "arc: runtime reassign BROKEN"
+end
+
+if os.identifyKernel == "linux"
+    inner = os.identifyKernelVersion
+    print "arc: scoped string: " + inner
+end
+print "arc: after scope ok"
+print "arc: done"

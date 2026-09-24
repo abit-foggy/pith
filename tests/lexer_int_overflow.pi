@@ -1,0 +1,4 @@
+# [PARSER] Integer literal beyond INT64_MAX. Expected: compiler error
+# (exit != 0) with an out-of-range diagnostic.
+x = 9223372036854775808
+print "unreachable"

@@ -1,0 +1,9 @@
+# fn declaration and return
+fn getAnswer
+    return 42
+end
+
+x = 1
+if x == 1
+    print "fn test: main still runs"
+end

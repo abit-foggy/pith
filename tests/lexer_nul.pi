@@ -1,0 +1,10 @@
+s = "a\0b"
+if s == "a\0b"
+    print "nul lossless ok"
+else
+    print "nul TRUNCATED"
+end
+t = s + "c"
+if t == "a\0bc"
+    print "nul concat ok"
+end

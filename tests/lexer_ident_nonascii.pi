@@ -1,0 +1,4 @@
+# [PARSER] Non-ASCII codepoint in an identifier. Expected: compiler
+# error (exit != 0): identifiers are ASCII lowerCamelCase only.
+café = 1
+print "unreachable"

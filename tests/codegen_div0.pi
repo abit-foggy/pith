@@ -1,0 +1,22 @@
+# [CODEGEN] Division by zero: v0.1 emits no zero-division guard, so
+# native integer division by a zero-valued variable must fail
+# deterministically with SIGFPE.
+#
+# Adversarial note: the naive `z = 0` / `x = 1 / z` does NOT trap —
+# QBE's load/store forwarding sees through the stack slot, promotes
+# the zero to a constant, and folds the division away entirely. The
+# divisor below is made opaque to the optimizer by deriving it from a
+# runtime call (os.isNT) through a conditional assignment, which
+# defeats per-block constant propagation.
+#
+# Expected: process death by SIGFPE (verified by tests/harness/div0.c,
+# which forks, execs `pith run` on this file, and checks the signal).
+
+x = 5
+if os.isNT
+    x = 5
+else
+    x = 0
+end
+y = 1 / x
+print "unreachable"

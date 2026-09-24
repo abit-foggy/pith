@@ -1,0 +1,66 @@
+name: release
+
+# Builds the pith toolchain for each supported platform and attaches
+# the artifacts to a GitHub release. install.sh consumes these:
+#
+#   pith-<triplet>.tar.gz
+#     pith            the toolchain binary (libtcc embedded statically)
+#     libtcc1.a       the vendored tcc runtime (JIT + linker support)
+#     libruntime.a    the ARC runtime (linked into pith build output)
+#     include/*.h     the public headers
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.triplet }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            triplet: x86_64-linux
+          - os: ubuntu-24.04-arm
+            triplet: aarch64-linux
+          - os: macos-latest
+            triplet: aarch64-darwin
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: build
+        run: |
+          make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
+
+      - name: package
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          STAGE="pith-${{ matrix.triplet }}-stage"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith "$STAGE/pith"
+          install -m 0644 vendor/tcc/libtcc1.a "$STAGE/libtcc1.a"
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h \
+                    include/compiler.h include/pith_embed.h \
+                    "$STAGE/include/"
+          tar -czf "pith-${{ matrix.triplet }}.tar.gz" -C "$STAGE" .
+          shasum -a 256 "pith-${{ matrix.triplet }}.tar.gz" \
+            > "pith-${{ matrix.triplet }}.tar.gz.sha256" ||
+            sha256sum "pith-${{ matrix.triplet }}.tar.gz" \
+            > "pith-${{ matrix.triplet }}.tar.gz.sha256"
+
+      - name: attach artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            pith-*.tar.gz
+            pith-*.tar.gz.sha256

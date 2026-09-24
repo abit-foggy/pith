@@ -1,0 +1,9 @@
+# Extra translation unit for multi-file builds
+fn unusedHelper
+    return 99
+end
+
+extraValue = 7
+if extraValue == 7
+    print "multi: extra unit ran"
+end

@@ -1,0 +1,70 @@
+# pith feature sweep
+x = 10
+x = x + 5
+y = x * 2 - 10
+z = y / 4
+neg = -x
+if x == 15
+    print "sweep: arithmetic ok"
+else
+    print "sweep: arithmetic BROKEN"
+end
+
+if y != 20
+    print "sweep: y BROKEN"
+else
+    print "sweep: y ok"
+end
+
+if z == 5
+    print "sweep: z ok"
+else
+    print "sweep: z BROKEN"
+end
+
+if neg == -15
+    print "sweep: negation ok"
+else
+    print "sweep: negation BROKEN"
+end
+
+if (x + 5) * 2 == 40
+    print "sweep: parens ok"
+else
+    print "sweep: parens BROKEN"
+end
+
+f = 1.5
+g = f + 2
+if g == 3.5
+    print "sweep: float promotion ok"
+else
+    print "sweep: float promotion BROKEN"
+end
+
+a = "pith"
+a = a + " " + "works"
+if a == "pith works"
+    print "sweep: string reassign ok"
+else
+    print "sweep: string reassign BROKEN"
+end
+
+s = "a" + "b"
+s = "c" + "d"
+if s == "cd"
+    print "sweep: heap reassign ok"
+else
+    print "sweep: heap reassign BROKEN"
+end
+
+if os.identifyKernel == "linux"
+    print "sweep: kernel ok"
+elseif os.isNT
+    print "sweep: kernel BROKEN (nt)"
+else
+    print "sweep: kernel BROKEN (other)"
+end
+
+Kernel = 5
+print "sweep: done"

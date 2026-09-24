@@ -1,0 +1,61 @@
+# [CODEGEN] INT64 boundary arithmetic. Two's-complement wraparound is
+# deterministic: INT64_MAX + 1 == INT64_MIN, and signed comparisons
+# must hold across the boundary. Expected: exit 0 with every check
+# passing (no BROKEN lines).
+
+max = 9223372036854775807
+one = 1
+min = 0 - max - one
+
+if max + one == min
+    print "int64: max+1 wraps to min ok"
+else
+    print "int64: max+1 wraps BROKEN"
+end
+
+if min + one == -max
+    print "int64: min+1 == -max ok"
+else
+    print "int64: min+1 == -max BROKEN"
+end
+
+if min < max
+    print "int64: signed compare ok"
+else
+    print "int64: signed compare BROKEN"
+end
+
+if min + max == -one
+    print "int64: min+max == -1 ok"
+else
+    print "int64: min+max == -1 BROKEN"
+end
+
+half = 4611686018427387904
+if half + half == min
+    print "int64: 2*half wraps to min ok"
+else
+    print "int64: 2*half wraps BROKEN"
+end
+
+big = 1000000007
+if big * big == 1000000014000000049
+    print "int64: 32-bit-scale product ok"
+else
+    print "int64: 32-bit-scale product BROKEN"
+end
+
+neg = -9223372036854775807
+if neg - one == min
+    print "int64: -max-1 == min ok"
+else
+    print "int64: -max-1 == min BROKEN"
+end
+
+if (max - one) + one == max
+    print "int64: boundary round trip ok"
+else
+    print "int64: boundary round trip BROKEN"
+end
+
+print "int64: done"

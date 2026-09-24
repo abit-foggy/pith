@@ -1,0 +1,27 @@
+# build artifacts
+pith
+*.o
+runtime/libruntime.a
+
+# test residue (make check asserts these are absent)
+test_audit
+test_ffi
+tests/gen_*.pi
+tests/harness/arc_stress
+tests/harness/arc_cycle
+tests/harness/tar_security
+tests/harness/div0
+restored_workspace/
+
+# local package/toolchain state
+.pith/
+pith.lock
+
+# Vendored tcc as a submodule
+vendor/tcc
+
+# editors
+*.swp
+*~
+.idea/
+.vscode/

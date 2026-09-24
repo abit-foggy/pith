@@ -1,0 +1,9 @@
+# System audit test
+if os.identifyKernel == "linux"
+    kernelVersion = os.identifyKernelVersion
+    print "Running smoothly on Linux kernel version: " + kernelVersion
+elseif os.isNT
+    print "Running safely on Windows NT architecture."
+else
+    print "Running on an alternative platform."
+end

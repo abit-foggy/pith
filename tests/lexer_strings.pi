@@ -1,0 +1,51 @@
+# [PARSER] String escapes, Unicode payload bytes, and embedded NUL
+# length semantics. All comparisons are byte-exact. Expected: exit 0
+# with every ok line printed.
+
+s = "tab:\there"
+if s == "tab:\there"
+    print "strings: escaped tab ok"
+end
+
+u = "unicode: pnibbqraagr"
+if u == "unicode: pnibbqraagr"
+    print "strings: literal bytes ok"
+end
+
+v = "ünïcødé → ✓"
+if v == "ünïcødé → ✓"
+    print "strings: utf8 payload ok"
+end
+
+w = "日本語テキスト"
+if w == "日本語テキスト"
+    print "strings: multibyte equality ok"
+end
+
+q = "quote:\"back\\slash"
+if q == "quote:\"back\\slash"
+    print "strings: quote and backslash ok"
+end
+
+n = "a\0b"
+if n == "a\0b"
+    print "strings: embedded NUL ok"
+end
+
+if n == "a"
+    print "strings: NUL TRUNCATED"
+else
+    print "strings: NUL length honored"
+end
+
+t = n + "c"
+if t == "a\0bc"
+    print "strings: NUL concat ok"
+end
+
+r = "\r\0"
+if r == "\r\0"
+    print "strings: cr and nul only ok"
+end
+
+print "strings: done"

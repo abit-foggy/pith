@@ -1,0 +1,72 @@
+# Native C import pipeline test: exercises every FFI ABI class
+# (w / l / s / d), string borrows, owned returns, and void calls,
+# through both the JIT and AOT paths.
+import "ffi/math.c"
+
+sum = math.addInts(3, 4)
+if sum == 7
+    print "ffi: 32-bit ints ok"
+else
+    print "ffi: 32-bit ints BROKEN"
+end
+
+big = math.addLongs(10000000000, 5)
+if big == 10000000005
+    print "ffi: 64-bit longs ok"
+else
+    print "ffi: 64-bit longs BROKEN"
+end
+
+scaled = math.scale(1.5, 2.0)
+if scaled == 3.0
+    print "ffi: doubles ok"
+else
+    print "ffi: doubles BROKEN"
+end
+
+halved = math.halfFloat(3.0)
+if halved == 1.5
+    print "ffi: single-precision float ok"
+else
+    print "ffi: single-precision float BROKEN"
+end
+
+n = math.stringLength("four")
+if n == 4
+    print "ffi: string borrow ok"
+else
+    print "ffi: string borrow BROKEN"
+end
+
+who = "world"
+msg = math.greet(who)
+if msg == "hello, world!"
+    print "ffi: owned string return ok"
+else
+    print "ffi: owned string return BROKEN"
+end
+
+suffix = math.makeSuffix()
+if suffix == "!!!"
+    print "ffi: no-arg string ok"
+else
+    print "ffi: no-arg string BROKEN"
+end
+
+copy = math.echo("pith")
+if copy == "pith"
+    print "ffi: round trip ok"
+else
+    print "ffi: round trip BROKEN"
+end
+
+math.bumpCounter(40)
+math.bumpCounter(2)
+count = math.readCounter()
+if count == 42
+    print "ffi: void call + state ok"
+else
+    print "ffi: void call + state BROKEN"
+end
+
+print "ffi: done"

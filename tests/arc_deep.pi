@@ -1,0 +1,50 @@
+# [ARC] Deeply nested scopes with heap-allocated strings at every
+# boundary. Every level's `end` must release exactly its own ARC
+# allocation: no leaks, no double-frees. Expected: exit 0, clean under
+# ASan, and the outermost binding still alive after unwinding.
+
+s0 = "arc" + "-deep"
+if s0 == "arc-deep"
+    s1 = s0 + "-1"
+    if s1 == "arc-deep-1"
+        s2 = s1 + "-2"
+        if s2 == "arc-deep-1-2"
+            s3 = s2 + "-3"
+            if s3 == "arc-deep-1-2-3"
+                s4 = s3 + "-4"
+                if s4 == "arc-deep-1-2-3-4"
+                    s5 = s4 + "-5"
+                    if s5 == "arc-deep-1-2-3-4-5"
+                        s6 = s5 + "-6"
+                        if s6 == "arc-deep-1-2-3-4-5-6"
+                            s7 = s6 + "-7"
+                            if s7 == "arc-deep-1-2-3-4-5-6-7"
+                                s8 = s7 + "-8"
+                                if s8 == "arc-deep-1-2-3-4-5-6-7-8"
+                                    s9 = s8 + "-9"
+                                    if s9 == "arc-deep-1-2-3-4-5-6-7-8-9"
+                                        s10 = s9 + "-10"
+                                        if s10 == "arc-deep-1-2-3-4-5-6-7-8-9-10"
+                                            s11 = s10 + "-11"
+                                            if s11 == "arc-deep-1-2-3-4-5-6-7-8-9-10-11"
+                                                s12 = s11 + "-12"
+                                                if s12 == "arc-deep-1-2-3-4-5-6-7-8-9-10-11-12"
+                                                    print "arc deep: 12 levels ok"
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+# the outermost binding must survive every inner scope exit
+if s0 == "arc-deep"
+    print "arc deep: outer binding alive"
+end
