@@ -388,13 +388,19 @@ static void lex_ident(Lexer *lx)
     char *text = dup_slice(lx->source + start, len);
 
     static const char *const keywords[] = {
-        "if", "elseif", "else", "end", "print", "fn", "return", "import"
+        "if", "elseif", "else", "end", "print", "fn", "return", "import",
+        "mut", "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64",
+        "f32", "f64"
     };
     for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
         if (strcmp(text, keywords[i]) == 0) {
             static const TokenType kw_tok[] = {
                 TOK_KW_IF, TOK_KW_ELSEIF, TOK_KW_ELSE, TOK_KW_END,
-                TOK_KW_PRINT, TOK_KW_FN, TOK_KW_RETURN, TOK_KW_IMPORT
+                TOK_KW_PRINT, TOK_KW_FN, TOK_KW_RETURN, TOK_KW_IMPORT,
+                TOK_KW_MUT,
+                TOK_TYPE_I8, TOK_TYPE_U8, TOK_TYPE_I16, TOK_TYPE_U16,
+                TOK_TYPE_I32, TOK_TYPE_U32, TOK_TYPE_I64, TOK_TYPE_U64,
+                TOK_TYPE_F32, TOK_TYPE_F64
             };
             push_token(lx, kw_tok[i], line, col, start, text, pith_utf8_len(text, strlen(text)), 0, 0.0);
             return;
@@ -557,6 +563,11 @@ void pith_lex(const char *filepath, const char *source,
             lx.pos++; lx.col++;
             push_token(&lx, TOK_OP_DOT, line, col, start,
                        dup_slice(".", 1), 1, 0, 0.0);
+            continue;
+        case ':':
+            lx.pos++; lx.col++;
+            push_token(&lx, TOK_OP_COLON, line, col, start,
+                       dup_slice(":", 1), 1, 0, 0.0);
             continue;
         case '(':
             lx.pos++; lx.col++;

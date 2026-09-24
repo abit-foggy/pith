@@ -1,0 +1,110 @@
+# [TYPES] Sized types, mutability, wrapping, and widening
+
+# mutable untyped baseline (i64 by default)
+mut a = 10
+a = a + 5
+if a == 15
+    print "types: mut baseline ok"
+else
+    print "types: mut baseline BROKEN"
+end
+
+# u8 wrapping: 255 + 1 wraps to 0 via storeb truncation
+mut byte: u8 = 255
+if byte == 255
+    print "types: u8 stores 255 ok"
+end
+byte = byte + 1
+if byte == 0
+    print "types: u8 wraps to 0 ok"
+else
+    print "types: u8 wrap BROKEN"
+end
+
+# i8 wrapping: 127 + 1 wraps to -128 via storeb + loadsb
+mut sample: i8 = 127
+if sample == 127
+    print "types: i8 stores 127 ok"
+end
+sample = sample + 1
+if sample == -128
+    print "types: i8 wraps to -128 ok"
+else
+    print "types: i8 wrap BROKEN"
+end
+
+# u8 zero-extension: stored 200 loads as 200 (not sign-extended)
+mut big: u8 = 200
+if big == 200
+    print "types: u8 zero-extends ok"
+end
+
+# i16 bounds and storage
+mut half: i16 = 32767
+if half == 32767
+    print "types: i16 stores max ok"
+end
+half = half + 1
+if half == -32768
+    print "types: i16 wraps ok"
+end
+
+# i32 positive
+mut quad: i32 = 100000
+if quad == 100000
+    print "types: i32 stores ok"
+end
+
+# u32 zero-extension
+mut wide: u32 = 4000000000
+if wide == 4000000000
+    print "types: u32 stores large ok"
+end
+
+# u16 storage
+mut hw: u16 = 65535
+if hw == 65535
+    print "types: u16 stores max ok"
+end
+
+# f32 (single-precision storage, double-precision arithmetic)
+mut flt: f32 = 1.5
+if flt == 1.5
+    print "types: f32 stores ok"
+end
+flt = flt * 2.0
+if flt == 3.0
+    print "types: f32 arithmetic ok"
+end
+
+# f64 (full precision)
+precise: f64 = 3.14159265358979
+if precise == 3.14159265358979
+    print "types: f64 precision ok"
+end
+
+# widening: small type in mixed arithmetic promotes to 64-bit
+small: u8 = 10
+big2 = 1000
+result = big2 + small
+if result == 1010
+    print "types: widening ok"
+else
+    print "types: widening BROKEN"
+end
+
+# immutability: the default is immutable
+fixed = 42
+if fixed == 42
+    print "types: immutable ok"
+end
+
+# mut without type: still i64
+mut counter = 0
+counter = counter + 1
+counter = counter + 1
+if counter == 2
+    print "types: mut untyped ok"
+end
+
+print "types: done"

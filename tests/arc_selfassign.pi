@@ -3,41 +3,41 @@
 # safe on heap strings; alias copies must hold balanced references.
 # Expected: exit 0, zero leaks/double-frees under ASan.
 
-x = "self" + "-assign"
+mut x = "self" + "-assign"
 x = x
 if x == "self-assign"
     print "selfassign: self ok"
 end
 
-y = x
+mut y = x
 x = x
 y = y
 if y == x
     print "selfassign: alias ok"
 end
 
-a = "heap" + "-a"
+mut a = "heap" + "-a"
 b = a
 a = b
 if a == "heap-a"
     print "selfassign: heap alias ok"
 end
 
-c = "c1" + "-c"
+mut c = "c1" + "-c"
 c = c
 c = c + "2"
 if c == "c1-c2"
     print "selfassign: self then extend ok"
 end
 
-d = "d" + "-1"
+mut d = "d" + "-1"
 d = d
 d = "d" + "-2"
 if d == "d-2"
     print "selfassign: replace after self ok"
 end
 
-e = "e" + "-1"
+mut e = "e" + "-1"
 f = e
 e = e + "-more"
 if e == "e-1-more"
@@ -47,7 +47,7 @@ if f == "e-1"
     print "selfassign: old alias intact ok"
 end
 
-g = "g" + "-x"
+mut g = "g" + "-x"
 g = g + "-y"
 g = g + "-z"
 if g == "g-x-y-z"

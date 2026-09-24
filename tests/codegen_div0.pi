@@ -12,7 +12,7 @@
 # Expected: process death by SIGFPE (verified by tests/harness/div0.c,
 # which forks, execs `pith run` on this file, and checks the signal).
 
-x = 5
+mut x = 5
 if os.isNT
     x = 5
 else

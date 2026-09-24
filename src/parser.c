@@ -545,9 +545,141 @@ static ASTNode *parse_expression(Parser *p)
 
 static ASTNode *parse_statement(Parser *p, int top_level);
 
-static ASTNode *parse_assignment(Parser *p)
+/* ------------------------------------------------------------------ */
+/* Sized type helpers                                                  */
+/* ------------------------------------------------------------------ */
+
+static const char *sized_type_name(PithSizedType t)
+{
+    switch (t) {
+    case PITH_SIZED_I8:  return "i8";
+    case PITH_SIZED_U8:  return "u8";
+    case PITH_SIZED_I16: return "i16";
+    case PITH_SIZED_U16: return "u16";
+    case PITH_SIZED_I32: return "i32";
+    case PITH_SIZED_U32: return "u32";
+    case PITH_SIZED_I64: return "i64";
+    case PITH_SIZED_U64: return "u64";
+    case PITH_SIZED_F32: return "f32";
+    case PITH_SIZED_F64: return "f64";
+    default: return "auto";
+    }
+}
+
+static PithSizedType parse_type_name(Parser *p)
+{
+    switch (peek(p)->type) {
+    case TOK_TYPE_I8:  advance(p); return PITH_SIZED_I8;
+    case TOK_TYPE_U8:  advance(p); return PITH_SIZED_U8;
+    case TOK_TYPE_I16: advance(p); return PITH_SIZED_I16;
+    case TOK_TYPE_U16: advance(p); return PITH_SIZED_U16;
+    case TOK_TYPE_I32: advance(p); return PITH_SIZED_I32;
+    case TOK_TYPE_U32: advance(p); return PITH_SIZED_U32;
+    case TOK_TYPE_I64: advance(p); return PITH_SIZED_I64;
+    case TOK_TYPE_U64: advance(p); return PITH_SIZED_U64;
+    case TOK_TYPE_F32: advance(p); return PITH_SIZED_F32;
+    case TOK_TYPE_F64: advance(p); return PITH_SIZED_F64;
+    default: return PITH_SIZED_AUTO;
+    }
+}
+
+/* Static bounds check for literal assignments to sized types. */
+static void check_literal_bounds(Parser *p, const Token *name_tok,
+                                 PithSizedType type, ASTNode *value)
+{
+    if (type == PITH_SIZED_AUTO || !value ||
+        value->type != AST_INT_EXPR)
+        return;
+
+    long long v = value->as.int_literal;
+    int bad = 0;
+    const char *msg = NULL;
+
+    switch (type) {
+    case PITH_SIZED_I8:
+        if (v < -128 || v > 127) {
+            bad = 1;
+            msg = "literal is out of range for type i8 (expected -128 to 127)";
+        }
+        break;
+    case PITH_SIZED_U8:
+        if (v < 0) {
+            bad = 1;
+            msg = "unsigned type u8 cannot hold a negative value";
+        } else if (v > 255) {
+            bad = 1;
+            msg = "literal is out of range for type u8 (expected 0 to 255)";
+        }
+        break;
+    case PITH_SIZED_I16:
+        if (v < -32768 || v > 32767) {
+            bad = 1;
+            msg = "literal is out of range for type i16 (expected -32768 to 32767)";
+        }
+        break;
+    case PITH_SIZED_U16:
+        if (v < 0) {
+            bad = 1;
+            msg = "unsigned type u16 cannot hold a negative value";
+        } else if (v > 65535) {
+            bad = 1;
+            msg = "literal is out of range for type u16 (expected 0 to 65535)";
+        }
+        break;
+    case PITH_SIZED_I32:
+        if (v < -2147483648LL || v > 2147483647LL) {
+            bad = 1;
+            msg = "literal is out of range for type i32";
+        }
+        break;
+    case PITH_SIZED_U32:
+        if (v < 0) {
+            bad = 1;
+            msg = "unsigned type u32 cannot hold a negative value";
+        } else if (v > 4294967295LL) {
+            bad = 1;
+            msg = "literal is out of range for type u32 (expected 0 to 4294967295)";
+        }
+        break;
+    case PITH_SIZED_U64:
+        if (v < 0) {
+            bad = 1;
+            msg = "unsigned type u64 cannot hold a negative value";
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (bad) {
+        char full[256];
+        snprintf(full, sizeof(full), "%s", msg);
+        pith_emit_diagnostic("error", full, p->filepath, p->source,
+                             name_tok->loc.line, name_tok->loc.col,
+                             strlen(name_tok->lexeme));
+        p->errors++;
+    }
+}
+
+static ASTNode *parse_assignment(Parser *p, bool is_mut)
 {
     const Token *name = advance(p);   /* TOK_IDENTIFIER */
+
+    /* optional `: type` annotation */
+    bool has_type = false;
+    PithSizedType sized_type = PITH_SIZED_AUTO;
+    if (at(p, TOK_OP_COLON)) {
+        advance(p);
+        sized_type = parse_type_name(p);
+        if (sized_type == PITH_SIZED_AUTO) {
+            parse_error_tok(p, peek(p), 1,
+                            "expected a type name after `:`, found %s",
+                            tok_kind_name(peek(p)->type));
+            return NULL;
+        }
+        has_type = true;
+    }
+
     if (!expect(p, TOK_OP_ASSIGN, "`=`"))
         return NULL;
 
@@ -557,21 +689,46 @@ static ASTNode *parse_assignment(Parser *p)
         return NULL;
     }
 
-    /* declaration vs reassignment: if the name exists in the current or
-       a parent scope this is a reassignment; otherwise it declares the
-       variable in the current scope. The RHS is parsed first, so
-       `x = x` on an undeclared x reports the use of `x`. */
-    bool is_decl = (scope_lookup(p, name->lexeme) == NULL);
-    if (is_decl) {
+    /* static bounds check for explicit typed literals */
+    if (has_type)
+        check_literal_bounds(p, name, sized_type, value);
+
+    bool is_decl;
+    if (has_type) {
+        /* a typed annotation is always a declaration */
+        is_decl = true;
         ScopeVar *v = scope_declare(p, name->lexeme);
-        if (strcmp(name->lexeme, "os") == 0)
-            pith_emit_diagnostic("warning",
-                                 "variable `os` shadows the builtin os "
-                                 "namespace",
-                                 p->filepath, p->source,
-                                 name->loc.line, name->loc.col,
-                                 strlen(name->lexeme));
-        (void)v;
+        if (v) {
+            v->is_mut = is_mut;
+            v->sized_type = sized_type;
+        }
+    } else {
+        is_decl = (scope_lookup(p, name->lexeme) == NULL);
+        if (is_decl) {
+            ScopeVar *v = scope_declare(p, name->lexeme);
+            if (v) {
+                v->is_mut = is_mut;
+                v->sized_type = PITH_SIZED_AUTO;
+            }
+            if (strcmp(name->lexeme, "os") == 0)
+                pith_emit_diagnostic("warning",
+                                     "variable `os` shadows the builtin os "
+                                     "namespace",
+                                     p->filepath, p->source,
+                                     name->loc.line, name->loc.col,
+                                     strlen(name->lexeme));
+        } else {
+            /* reassignment: the existing symbol must be mut */
+            ScopeVar *existing = scope_lookup(p, name->lexeme);
+            if (existing && !existing->is_mut) {
+                parse_error_tok(p, name, strlen(name->lexeme),
+                                "cannot assign twice to immutable "
+                                "variable `%s` (declare with `mut` to "
+                                "reassign)",
+                                name->lexeme);
+                return NULL;
+            }
+        }
     }
 
     ASTNode *n = node_new(p, AST_ASSIGNMENT, name->loc);
@@ -582,6 +739,9 @@ static ASTNode *parse_assignment(Parser *p)
     }
     n->as.assignment.value = value;
     n->as.assignment.is_declaration = is_decl;
+    n->as.assignment.is_mut = is_mut;
+    n->as.assignment.has_explicit_type = has_type;
+    n->as.assignment.sized_type = sized_type;
     return n;
 }
 
@@ -806,9 +966,21 @@ static ASTNode *parse_statement(Parser *p, int top_level)
             return NULL;
         }
         return parse_import(p);
+    case TOK_KW_MUT:
+        advance(p);   /* consume 'mut' */
+        if (!at(p, TOK_IDENTIFIER)) {
+            parse_error_tok(p, peek(p), 1,
+                            "expected an identifier after `mut`, "
+                            "found %s",
+                            tok_kind_name(peek(p)->type));
+            sync_to_newline(p);
+            return NULL;
+        }
+        return parse_assignment(p, /*is_mut=*/true);
     case TOK_IDENTIFIER:
-        if (peek_at(p, 1)->type == TOK_OP_ASSIGN)
-            return parse_assignment(p);
+        if (peek_at(p, 1)->type == TOK_OP_ASSIGN ||
+            peek_at(p, 1)->type == TOK_OP_COLON)
+            return parse_assignment(p, /*is_mut=*/false);
         {
             /* a bare call may be used as a statement: ns.fn(args) */
             ASTNode *expr = parse_expression(p);

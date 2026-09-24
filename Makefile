@@ -133,6 +133,14 @@ check test: all
 	@! ./test_ffi | grep -q BROKEN
 	./test_ffi | grep -q "ffi: done"
 	@rm -f test_ffi
+	# [TYPES] sized types, mutability, wrapping, bounds checking
+	@! ./pith run tests/test_types.pi 2>/dev/null | grep -q BROKEN
+	./pith run tests/test_types.pi 2>/dev/null | grep -q "types: done"
+	@! ./pith run tests/types_err_immutable.pi > /dev/null 2>&1
+	@! ./pith run tests/types_err_typed_immutable.pi > /dev/null 2>&1
+	@! ./pith run tests/types_err_u8_overflow.pi > /dev/null 2>&1
+	@! ./pith run tests/types_err_u8_negative.pi > /dev/null 2>&1
+	@! ./pith run tests/types_err_i8_overflow.pi > /dev/null 2>&1
 	# [PARSER] error-expectation tests: diagnostics, not segfaults
 	@! ./pith run tests/lexer_unterminated.pi > /dev/null 2>&1
 	@! ./pith run tests/lexer_ident_nonascii.pi > /dev/null 2>&1
@@ -188,7 +196,7 @@ check test: all
 	@echo "all checks passed (workspace clean)"
 
 clean:
-	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
+	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi test_types tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
 	rm -rf restored_workspace .pith
 
 distclean: clean

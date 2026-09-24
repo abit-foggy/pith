@@ -71,6 +71,19 @@ typedef enum {
     TOK_KW_FN,
     TOK_KW_RETURN,
     TOK_KW_IMPORT,
+    TOK_KW_MUT,
+
+    /* sized type keywords */
+    TOK_TYPE_I8,
+    TOK_TYPE_U8,
+    TOK_TYPE_I16,
+    TOK_TYPE_U16,
+    TOK_TYPE_I32,
+    TOK_TYPE_U32,
+    TOK_TYPE_I64,
+    TOK_TYPE_U64,
+    TOK_TYPE_F32,
+    TOK_TYPE_F64,
 
     /* identifiers & literals */
     TOK_IDENTIFIER,
@@ -91,6 +104,7 @@ typedef enum {
     TOK_OP_STAR,            /* *   */
     TOK_OP_SLASH,           /* /   */
     TOK_OP_DOT,             /* .   */
+    TOK_OP_COLON,           /* :   */
     TOK_OP_LPAREN,          /* (   */
     TOK_OP_RPAREN,          /* )   */
     TOK_OP_COMMA,           /* ,   */
@@ -128,6 +142,24 @@ typedef enum {
 } PithValueType;
 
 /* ------------------------------------------------------------------ */
+/* Sized storage types                                                 */
+/* ------------------------------------------------------------------ */
+
+typedef enum {
+    PITH_SIZED_AUTO = 0,    /* infer from value: i64 or f64            */
+    PITH_SIZED_I8,
+    PITH_SIZED_U8,
+    PITH_SIZED_I16,
+    PITH_SIZED_U16,
+    PITH_SIZED_I32,
+    PITH_SIZED_U32,
+    PITH_SIZED_I64,
+    PITH_SIZED_U64,
+    PITH_SIZED_F32,
+    PITH_SIZED_F64,
+} PithSizedType;
+
+/* ------------------------------------------------------------------ */
 /* AST                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -145,6 +177,9 @@ typedef struct {
     char    *var_name;       /* owned                                    */
     ASTNode *value;          /* expression                               */
     bool     is_declaration; /* set by the parser's scope tracking      */
+    bool     is_mut;         /* declared with `mut`                      */
+    bool     has_explicit_type; /* declared with `: type`                */
+    PithSizedType sized_type;   /* the explicit type, if any             */
 } ASTAssignment;
 
 /* one branch of an if chain; condition == NULL only for the else */
@@ -265,7 +300,9 @@ typedef struct ScopeVar {
     struct ScopeVar *next;
     char            *name;       /* owned                              */
     PithValueType    var_type;
+    PithSizedType    sized_type; /* storage width (alloc/loads/stores) */
     bool             is_arc;     /* holds a refcounted heap value     */
+    bool             is_mut;     /* reassignable?                     */
     unsigned         slot;       /* codegen: stack-slot number         */
 } ScopeVar;
 
