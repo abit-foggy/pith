@@ -25,3 +25,6 @@ vendor/tcc
 *~
 .idea/
 .vscode/
+
+# per-command test dirs (overlay tests)
+tests/ns/

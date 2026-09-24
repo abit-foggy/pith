@@ -27,8 +27,7 @@
 /* ------------------------------------------------------------------ */
 
 const char *pith_cffi_header_text(void)
-{
-    return
+{    return
 "/* pith.h — minimal C runtime header for imported Pith C modules.\n"
 "   NOTE: pre-baked copy; keep in sync with include/pith.h. */\n"
 "#ifndef PITH_H\n"
@@ -63,6 +62,36 @@ const char *pith_cffi_header_text(void)
 "}\n"
 "#endif\n"
 "#endif /* PITH_H */\n";
+}
+
+/* Sanitize into a QBE/C-safe identifier chunk (alnum / underscore). */
+static void sanitize_ident(const char *in, char *out, size_t n)
+{
+    size_t o = 0;
+    for (size_t i = 0; in[i] && o + 1 < n; i++) {
+        char c = in[i];
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '_')
+            out[o++] = c;
+        else
+            out[o++] = '_';
+    }
+    out[o] = '\0';
+}
+
+void pith_cffi_mangled_name(const char *author, const char *module,
+                            const char *fn, char *out, size_t n)
+{
+    char mod_clean[64], fn_clean[128];
+    sanitize_ident(module, mod_clean, sizeof(mod_clean));
+    sanitize_ident(fn, fn_clean, sizeof(fn_clean));
+    if (author && author[0]) {
+        char a_clean[64];
+        sanitize_ident(author, a_clean, sizeof(a_clean));
+        snprintf(out, n, "c_%s_%s_%s", a_clean, mod_clean, fn_clean);
+    } else {
+        snprintf(out, n, "c_%s_%s", mod_clean, fn_clean);
+    }
 }
 
 /* ------------------------------------------------------------------ */

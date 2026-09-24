@@ -255,6 +255,52 @@ static char *compile_frontend(const char **paths, size_t count,
                     }
                     nimports++;
 
+                    /* author scope: the import path's directory part
+                       as written ("alice/os.c" -> "alice"); a bare
+                       "os.c" is a root-level import */
+                    {
+                        const char *w = st->as.import_stmt.path;
+                        const char *slash = strrchr(w, '/');
+                        PithImportUnit *imp = &imports[nimports - 1];
+                        if (slash) {
+                            size_t alen = (size_t)(slash - w);
+                            if (alen >= sizeof(imp->author))
+                                alen = sizeof(imp->author) - 1;
+                            memcpy(imp->author, w, alen);
+                            imp->author[alen] = '\0';
+                        } else {
+                            imp->author[0] = '\0';
+                        }
+
+                        /* informational: per-symbol overrides of the
+                           builtin os namespace */
+                        if (strcmp(imp->ns, "os") == 0) {
+                            for (size_t f = 0; f < imp->nfn; f++) {
+                                if (!pith_os_member_exists(imp->fns[f].name))
+                                    continue;
+                                char msg[256];
+                                if (imp->author[0])
+                                    snprintf(msg, sizeof(msg),
+                                             "%s.os.%s overrides "
+                                             "os.%s",
+                                             imp->author,
+                                             imp->fns[f].name,
+                                             imp->fns[f].name);
+                                else
+                                    snprintf(msg, sizeof(msg),
+                                             "import os.%s overrides "
+                                             "os.%s",
+                                             imp->fns[f].name,
+                                             imp->fns[f].name);
+                                pith_emit_diagnostic("note", msg,
+                                                     paths[u],
+                                                     unit_sources[u],
+                                                     st->loc.line,
+                                                     st->loc.col, 2);
+                            }
+                        }
+                    }
+
                     if (strcmp(imports[nimports - 1].ns, "os") == 0)
                         pith_emit_diagnostic("warning",
                                              "import `os` shadows the "

@@ -484,6 +484,13 @@ static const OsMember *os_member_find(const char *name)
     return NULL;
 }
 
+/* Does the builtin os namespace expose `name`? (public: used by the
+   import discovery for override warnings) */
+int pith_os_member_exists(const char *name)
+{
+    return os_member_find(name) != NULL;
+}
+
 static ExprResult gen_expr(Codegen *g, ASTNode *n);
 
 /* ------------------------------------------------------------------ */
@@ -624,75 +631,338 @@ static int ffi_convert_arg(Codegen *g, ExprResult *v, PithFfiType t,
 static ExprResult expr_dummy(void);
 
 /* ns.fn(args) — a typed call through the namespaced shim. */
+/* ------------------------------------------------------------------ */
+/* Namespace resolution (unified for calls and bare accesses)         */
+/* ------------------------------------------------------------------ */
+
+typedef enum {
+    NS_FOUND_IMPORT,     /* unit + fn set                              */
+    NS_FOUND_BUILTIN,    /* om set                                     */
+    NS_NOT_FOUND,
+} NsKind;
+
+typedef struct {
+    NsKind kind;
+    const PithImportUnit *unit;
+    const PithForeignFn *fn;
+    const OsMember *om;
+} NsResolved;
+
+/* Find an import unit by author + module name. */
+static const PithImportUnit *find_import_am(Codegen *g,
+                                            const char *author,
+                                            const char *module)
+{
+    for (size_t i = 0; i < g->nimports; i++) {
+        const PithImportUnit *u = &g->imports[i];
+        if (strcmp(u->ns, module) != 0)
+            continue;
+        if (strcmp(u->author, author) == 0)
+            return u;
+    }
+    return NULL;
+}
+
+/* Mangled QBE symbol for an imported function (author-aware). */
+static void shim_symbol(const PithImportUnit *u, const PithForeignFn *fn,
+                        char *out, size_t n)
+{
+    char mangled[192];
+    pith_cffi_mangled_name(u->author, u->ns, fn->name, mangled,
+                           sizeof(mangled));
+    snprintf(out, n, "$%s", mangled);
+}
+
+/*
+ * Unified resolution:
+ *   1. fully-qualified: "root.<module>" resolves to the builtin ONLY
+ *      (bypasses all overrides); "<author>.<module>" resolves to that
+ *      author's unit directly
+ *   2. unqualified "<module>": the overlay (active imports, newest
+ *      first), then the root base (builtin)
+ */
+static NsResolved ns_resolve(Codegen *g, const char *ns_path,
+                             const char *member)
+{
+    NsResolved r;
+    memset(&r, 0, sizeof(r));
+
+    const char *dot = strrchr(ns_path, '.');
+    if (dot) {
+        char scope[64], module[64];
+        size_t slen = (size_t)(dot - ns_path);
+        if (slen >= sizeof(scope)) slen = sizeof(scope) - 1;
+        memcpy(scope, ns_path, slen);
+        scope[slen] = '\0';
+        snprintf(module, sizeof(module), "%s", dot + 1);
+
+        if (strcmp(scope, "root") == 0) {
+            /* the explicit root scope: base runtime ONLY */
+            if (strcmp(module, "os") == 0) {
+                const OsMember *om = os_member_find(member);
+                if (om) {
+                    r.kind = NS_FOUND_BUILTIN;
+                    r.om = om;
+                    return r;
+                }
+            }
+            r.kind = NS_NOT_FOUND;
+            return r;
+        }
+
+        /* author.module: direct lookup, bypassing overrides */
+        const PithImportUnit *u = find_import_am(g, scope, module);
+        if (u) {
+            const PithForeignFn *fn = find_foreign_fn(u, member);
+            if (fn) {
+                r.kind = NS_FOUND_IMPORT;
+                r.unit = u;
+                r.fn = fn;
+                return r;
+            }
+        }
+        r.kind = NS_NOT_FOUND;
+        return r;
+    }
+
+    /* unqualified module: the overlay first (newest import wins),
+       then the builtin base */
+    for (size_t i = g->nimports; i > 0; i--) {
+        const PithImportUnit *u = &g->imports[i - 1];
+        if (strcmp(u->ns, ns_path) != 0)
+            continue;
+        const PithForeignFn *fn = find_foreign_fn(u, member);
+        if (fn) {
+            r.kind = NS_FOUND_IMPORT;
+            r.unit = u;
+            r.fn = fn;
+            return r;
+        }
+    }
+    if (strcmp(ns_path, "os") == 0) {
+        const OsMember *om = os_member_find(member);
+        if (om) {
+            r.kind = NS_FOUND_BUILTIN;
+            r.om = om;
+            return r;
+        }
+    }
+    r.kind = NS_NOT_FOUND;
+    return r;
+}
+
+/* Flatten a member-access chain into its dotted path: the LAST
+   component is the member (the caller splits); "alice.os.identifyKernel"
+   flattens to "alice.os.identifyKernel". Chains rooted at anything but
+   an identifier (e.g. call results) flatten to an empty path. */
+static void flatten_chain(ASTNode *node, char *out, size_t outlen)
+{
+    if (node->type == AST_MEMBER_ACCESS) {
+        flatten_chain(node->as.member_access.base, out, outlen);
+        size_t len = strlen(out);
+        const char *m = node->as.member_access.member;
+        size_t mlen = strlen(m);
+        if (len && len + 1 + mlen + 1 <= outlen) {
+            out[len] = '.';
+            memcpy(out + len + 1, m, mlen);
+            out[len + 1 + mlen] = '\0';
+        }
+    } else if (node->type == AST_IDENTIFIER_EXPR) {
+        snprintf(out, outlen, "%s", node->as.identifier);
+    } else {
+        out[0] = '\0';
+    }
+}
+
+/*
+ * The unified namespace member access: identical resolution logic for
+ * bare accesses (`ns.member`) and calls (`ns.member(...)`).
+ */
+static ExprResult ns_access(Codegen *g, const char *ns_path,
+                            const char *member, SourceLoc loc,
+                            size_t span, bool is_call, size_t arg_count,
+                            ExprResult *args)
+{
+    NsResolved r = ns_resolve(g, ns_path, member);
+
+    if (r.kind == NS_NOT_FOUND) {
+        cg_error(g, loc, span, "unknown member or namespace `%s.%s`",
+                 ns_path, member);
+        return expr_dummy();
+    }
+
+    if (r.kind == NS_FOUND_BUILTIN) {
+        /* builtin os member: a zero-arg property */
+        if (arg_count != 0) {
+            cg_error(g, loc, 1,
+                     "`%s.%s` is a property and takes no arguments",
+                     ns_path, member);
+            return expr_dummy();
+        }
+        ExprResult res;
+        memset(&res, 0, sizeof(res));
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        if (r.om->type == PITH_VALUE_BOOL) {
+            EMIT("\t%s =w call %s()\n", t, r.om->qbe_fn);
+            res.type = PITH_VALUE_BOOL;
+            res.owned = false;
+        } else {
+            EMIT("\t%s =l call %s()\n", t, r.om->qbe_fn);
+            res.type = PITH_VALUE_STRING;
+            res.owned = true;   /* the runtime transfers a fresh ref */
+        }
+        snprintf(res.ref, sizeof(res.ref), "%s", t);
+        res.borrowed_arc = false;
+        return res;
+    }
+
+    /* import: strict arity for calls; bare access only for zero-param
+       members (called like a builtin property) */
+    const PithForeignFn *fn = r.fn;
+
+    if (!is_call && fn->nparams != 0) {
+        cg_error(g, loc, span,
+                 "member `%s.%s` expects %zu argument%s; call it with "
+                 "(...)", ns_path, member, fn->nparams,
+                 fn->nparams == 1 ? "" : "s");
+        return expr_dummy();
+    }
+    if (is_call && arg_count != fn->nparams) {
+        cg_error(g, loc, 1, "`%s.%s` expects %zu argument%s, got %zu",
+                 ns_path, member, fn->nparams,
+                 fn->nparams == 1 ? "" : "s", arg_count);
+        return expr_dummy();
+    }
+
+    /* convert every argument to the resolved parameter class */
+    for (size_t i = 0; i < arg_count; i++) {
+        if (ffi_convert_arg(g, &args[i], fn->params[i], loc, 1) != 0)
+            return expr_dummy();
+    }
+
+    char sym[192];
+    shim_symbol(r.unit, fn, sym, sizeof(sym));
+
+    char ns_clean[64];
+    qbe_sanitize(ns_path, ns_clean, sizeof(ns_clean));
+
+    ExprResult res;
+    memset(&res, 0, sizeof(res));
+
+    if (fn->ret == PITH_FFI_VOID) {
+        if (is_call) {
+            char argtext[512];
+            size_t at = 0;
+            for (size_t i = 0; i < arg_count; i++) {
+                if (i) {
+                    argtext[at++] = ',';
+                    argtext[at++] = ' ';
+                }
+                argtext[at++] = ffi_letter(fn->params[i]);
+                argtext[at++] = ' ';
+                size_t rl = strlen(args[i].ref);
+                if (at + rl + 1 >= sizeof(argtext)) {
+                    cg_error(g, loc, 1, "internal error: argument list "
+                                        "too long", "");
+                    return expr_dummy();
+                }
+                memcpy(argtext + at, args[i].ref, rl);
+                at += rl;
+            }
+            argtext[at] = '\0';
+            EMIT("\tcall %s(%s)\n", sym, argtext);
+        } else {
+            EMIT("\tcall %s()\n", sym);
+        }
+        res.type = PITH_VALUE_ERROR;   /* usable only as a statement */
+        res.owned = false;
+        res.borrowed_arc = false;
+        snprintf(res.ref, sizeof(res.ref), "0");
+        return res;
+    }
+
+    char t[64];
+    new_tmp(g, t, sizeof(t));
+
+    if (is_call) {
+        char argtext[512];
+        size_t at = 0;
+        for (size_t i = 0; i < arg_count; i++) {
+            if (i) {
+                argtext[at++] = ',';
+                argtext[at++] = ' ';
+            }
+            argtext[at++] = ffi_letter(fn->params[i]);
+            argtext[at++] = ' ';
+            size_t rl = strlen(args[i].ref);
+            if (at + rl + 1 >= sizeof(argtext)) {
+                cg_error(g, loc, 1, "internal error: argument list too "
+                                    "long", "");
+                return expr_dummy();
+            }
+            memcpy(argtext + at, args[i].ref, rl);
+            at += rl;
+        }
+        argtext[at] = '\0';
+        EMIT("\t%s =%c call %s(%s)\n", t, ffi_letter(fn->ret), sym,
+             argtext);
+    } else {
+        EMIT("\t%s =%c call %s()\n", t, ffi_letter(fn->ret), sym);
+    }
+    snprintf(res.ref, sizeof(res.ref), "%s", t);
+
+    switch (fn->ret) {
+    case PITH_FFI_WORD:
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =l extsw %s\n", t, res.ref);
+        snprintf(res.ref, sizeof(res.ref), "%s", t);
+        res.type = PITH_VALUE_INT;
+        res.owned = false;
+        res.borrowed_arc = false;
+        break;
+    case PITH_FFI_LONG:
+        res.type = fn->ret_pith_value ? PITH_VALUE_STRING
+                                      : PITH_VALUE_INT;
+        res.owned = fn->ret_pith_value;
+        res.borrowed_arc = false;
+        break;
+    case PITH_FFI_SINGLE:
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =d exts %s\n", t, res.ref);
+        snprintf(res.ref, sizeof(res.ref), "%s", t);
+        res.type = PITH_VALUE_FLOAT;
+        res.owned = false;
+        res.borrowed_arc = false;
+        break;
+    case PITH_FFI_DOUBLE:
+        res.type = PITH_VALUE_FLOAT;
+        res.owned = false;
+        res.borrowed_arc = false;
+        break;
+    default:
+        return expr_dummy();
+    }
+    return res;
+}
+
+/* ns.fn(args) — a typed call through the namespaced shim. */
 static ExprResult gen_call(Codegen *g, ASTNode *n)
 {
     ASTCallExpr *call = &n->as.call;
     ExprResult dummy = expr_dummy();
 
-    if (call->callee->type != AST_MEMBER_ACCESS ||
-        call->callee->as.member_access.base->type !=
-            AST_IDENTIFIER_EXPR) {
+    char path[512];
+    flatten_chain(call->callee->as.member_access.base, path,
+                  sizeof(path));
+    if (!path[0]) {
         cg_error(g, call->callee->loc, 1,
-                 "a call target must name an imported namespace "
+                 "a call target must name a namespace member "
                  "(ns.fn)", "");
         return dummy;
     }
-
-    const char *ns = call->callee->as.member_access.base->as.identifier;
-    const char *fname = call->callee->as.member_access.member;
-
-    const PithImportUnit *u = find_import(g, ns);
-    if (!u) {
-        /* no import with this namespace: fall back to the builtin os
-           namespace (its members are zero-arg accesses) */
-        if (strcmp(ns, "os") == 0) {
-            const OsMember *om = os_member_find(fname);
-            if (!om) {
-                cg_error(g, call->callee->loc,
-                         pith_utf8_len(fname, strlen(fname)),
-                         "unknown member `os.%s`", fname);
-                return dummy;
-            }
-            if (call->arg_count != 0) {
-                cg_error(g, n->loc, 1,
-                         "`os.%s` is a property and takes no arguments",
-                         fname);
-                return dummy;
-            }
-            ExprResult res;
-            memset(&res, 0, sizeof(res));
-            char t[64];
-            new_tmp(g, t, sizeof(t));
-            if (om->type == PITH_VALUE_BOOL) {
-                EMIT("\t%s =w call %s()\n", t, om->qbe_fn);
-                res.type = PITH_VALUE_BOOL;
-            } else {
-                EMIT("\t%s =l call %s()\n", t, om->qbe_fn);
-                res.type = PITH_VALUE_STRING;
-                res.owned = true;
-            }
-            snprintf(res.ref, sizeof(res.ref), "%s", t);
-            res.borrowed_arc = false;
-            return res;
-        }
-        cg_error(g, call->callee->loc, pith_utf8_len(ns, strlen(ns)),
-                 "unknown import namespace `%s` (missing import?)", ns);
-        return dummy;
-    }
-    const PithForeignFn *fn = find_foreign_fn(u, fname);
-    if (!fn) {
-        cg_error(g, call->callee->loc,
-                 pith_utf8_len(fname, strlen(fname)),
-                 "import `%s` has no exported function `%s`", ns,
-                 fname);
-        return dummy;
-    }
-    if (call->arg_count != fn->nparams) {
-        cg_error(g, n->loc, 1, "`%s.%s` expects %zu argument%s, got %zu",
-                 ns, fname, fn->nparams,
-                 fn->nparams == 1 ? "" : "s", call->arg_count);
-        return dummy;
-    }
+    const char *member =
+        call->callee->as.member_access.member;
 
     /* evaluate and convert every argument */
     ExprResult args[PITH_FFI_MAX_PARAMS];
@@ -700,91 +970,15 @@ static ExprResult gen_call(Codegen *g, ASTNode *n)
         args[i] = gen_expr(g, call->args[i]);
         if (args[i].type == PITH_VALUE_ERROR)
             return dummy;
-        if (ffi_convert_arg(g, &args[i], fn->params[i], n->loc, 1) != 0)
-            return dummy;
+        /* conversion happens after resolution (the resolved function
+           determines the parameter class); a placeholder pass would
+           double-emit — so conversion is deferred to ns_access */
     }
 
-    /* argument list text: "w %.t1, l %.t2, ..." */
-    char argtext[512];
-    size_t at = 0;
-    for (size_t i = 0; i < call->arg_count; i++) {
-        if (i) {
-            argtext[at++] = ',';
-            argtext[at++] = ' ';
-        }
-        argtext[at++] = ffi_letter(fn->params[i]);
-        argtext[at++] = ' ';
-        size_t rl = strlen(args[i].ref);
-        if (at + rl + 1 >= sizeof(argtext)) {
-            cg_error(g, n->loc, 1, "internal error: argument list too "
-                                   "long", "");
-            return dummy;
-        }
-        memcpy(argtext + at, args[i].ref, rl);
-        at += rl;
-    }
-    argtext[at] = '\0';
-
-    char ns_clean[64], fn_clean[128];
-    qbe_sanitize(ns, ns_clean, sizeof(ns_clean));
-    qbe_sanitize(fname, fn_clean, sizeof(fn_clean));
-
-    ExprResult res;
-    memset(&res, 0, sizeof(res));
-
-    if (fn->ret == PITH_FFI_VOID) {
-        EMIT("\tcall $c_%s_%s(%s)\n", ns_clean, fn_clean, argtext);
-        res.type = PITH_VALUE_ERROR;   /* usable only as a statement */
-        res.owned = false;
-        res.borrowed_arc = false;
-        snprintf(res.ref, sizeof(res.ref), "0");
-    } else {
-        char r[64], r2[64];
-        new_tmp(g, r, sizeof(r));
-        EMIT("\t%s =%c call $c_%s_%s(%s)\n", r, ffi_letter(fn->ret),
-             ns_clean, fn_clean, argtext);
-
-        switch (fn->ret) {
-        case PITH_FFI_WORD:
-            new_tmp(g, r2, sizeof(r2));
-            EMIT("\t%s =l extsw %s\n", r2, r);
-            snprintf(res.ref, sizeof(res.ref), "%s", r2);
-            res.type = PITH_VALUE_INT;
-            res.owned = false;
-            res.borrowed_arc = false;
-            break;
-        case PITH_FFI_LONG:
-            if (fn->ret_pith_value) {
-                /* +1 reference transferred from C: owned by us now */
-                snprintf(res.ref, sizeof(res.ref), "%s", r);
-                res.type = PITH_VALUE_STRING;
-                res.owned = true;
-                res.borrowed_arc = false;
-            } else {
-                snprintf(res.ref, sizeof(res.ref), "%s", r);
-                res.type = PITH_VALUE_INT;
-                res.owned = false;
-                res.borrowed_arc = false;
-            }
-            break;
-        case PITH_FFI_SINGLE:
-            new_tmp(g, r2, sizeof(r2));
-            EMIT("\t%s =d exts %s\n", r2, r);
-            snprintf(res.ref, sizeof(res.ref), "%s", r2);
-            res.type = PITH_VALUE_FLOAT;
-            res.owned = false;
-            res.borrowed_arc = false;
-            break;
-        case PITH_FFI_DOUBLE:
-            snprintf(res.ref, sizeof(res.ref), "%s", r);
-            res.type = PITH_VALUE_FLOAT;
-            res.owned = false;
-            res.borrowed_arc = false;
-            break;
-        default:
-            return dummy;
-        }
-    }
+    ExprResult res = ns_access(g, path, member, n->loc,
+                               pith_utf8_len(member,
+                                             strlen(member)),
+                               true, call->arg_count, args);
 
     /* owned string temporaries passed as borrowed arguments are
        consumed by the call and released right after it */
@@ -794,11 +988,25 @@ static ExprResult gen_call(Codegen *g, ASTNode *n)
     return res;
 }
 
-/* ------------------------------------------------------------------ */
-/* Expressions                                                        */
-/* ------------------------------------------------------------------ */
+static ExprResult gen_member_access(Codegen *g, ASTNode *n)
+{
+    ASTMemberAccess *m = &n->as.member_access;
 
-static ExprResult gen_expr(Codegen *g, ASTNode *n);
+    char path[512];
+    flatten_chain(m->base, path, sizeof(path));
+    if (!path[0]) {
+        cg_error(g, m->base->loc, 2,
+                 "unknown namespace in member access "
+                 "(namespaces are `os.*`, `root.*`, or imported "
+                 "modules)", "");
+        return expr_dummy();
+    }
+    const char *member = m->member;
+
+    return ns_access(g, path, member, n->loc,
+                     pith_utf8_len(member, strlen(member)),
+                     false, 0, NULL);
+}
 
 static ExprResult expr_dummy(void)
 {
@@ -806,120 +1014,6 @@ static ExprResult expr_dummy(void)
     snprintf(v.ref, sizeof(v.ref), "0");
     v.type = PITH_VALUE_ERROR;
     v.owned = false;
-    v.borrowed_arc = false;
-    return v;
-}
-
-static ExprResult gen_member_access(Codegen *g, ASTNode *n)
-{
-    ASTMemberAccess *m = &n->as.member_access;
-    if (m->base->type != AST_IDENTIFIER_EXPR) {
-        cg_error(g, m->base->loc, 2,
-                 "unknown namespace in member access "
-                 "(namespaces are `os.*` or imported modules)", "");
-        return expr_dummy();
-    }
-    const char *ns = m->base->as.identifier;
-
-    /*
-     * Imports shadow the builtin os namespace: an `import "os.c"`
-     * makes every os.* access resolve to the import, bare or called.
-     */
-    const PithImportUnit *u = find_import(g, ns);
-    if (u) {
-        const PithForeignFn *fn = find_foreign_fn(u, m->member);
-        if (!fn) {
-            cg_error(g, n->loc,
-                     pith_utf8_len(m->member, strlen(m->member)),
-                     "import `%s` has no exported member `%s`",
-                     u->ns, m->member);
-            return expr_dummy();
-        }
-        if (fn->nparams != 0) {
-            cg_error(g, n->loc,
-                     pith_utf8_len(m->member, strlen(m->member)),
-                     "member `%s.%s` expects %zu argument%s; call it "
-                     "with (...)", u->ns, m->member, fn->nparams,
-                     fn->nparams == 1 ? "" : "s");
-            return expr_dummy();
-        }
-        /* zero-param member: called like a builtin property */
-        char ns_clean[64], fn_clean[128];
-        qbe_sanitize(u->ns, ns_clean, sizeof(ns_clean));
-        qbe_sanitize(fn->name, fn_clean, sizeof(fn_clean));
-
-        ExprResult res;
-        memset(&res, 0, sizeof(res));
-        char t[64];
-        new_tmp(g, t, sizeof(t));
-        if (fn->ret == PITH_FFI_VOID) {
-            EMIT("\tcall $c_%s_%s()\n", ns_clean, fn_clean);
-            res.type = PITH_VALUE_ERROR;
-            res.owned = false;
-            res.borrowed_arc = false;
-            snprintf(res.ref, sizeof(res.ref), "0");
-            return res;
-        }
-        char r[64];
-        new_tmp(g, r, sizeof(r));
-        EMIT("\t%s =%c call $c_%s_%s()\n", r, ffi_letter(fn->ret),
-             ns_clean, fn_clean);
-        snprintf(res.ref, sizeof(res.ref), "%s", r);
-
-        switch (fn->ret) {
-        case PITH_FFI_WORD:
-            new_tmp(g, r, sizeof(r));
-            EMIT("\t%s =l extsw %s\n", r, res.ref);
-            snprintf(res.ref, sizeof(res.ref), "%s", r);
-            res.type = PITH_VALUE_INT;
-            break;
-        case PITH_FFI_LONG:
-            res.type = fn->ret_pith_value ? PITH_VALUE_STRING
-                                          : PITH_VALUE_INT;
-            res.owned = fn->ret_pith_value;
-            break;
-        case PITH_FFI_SINGLE:
-            new_tmp(g, r, sizeof(r));
-            EMIT("\t%s =d exts %s\n", r, res.ref);
-            snprintf(res.ref, sizeof(res.ref), "%s", r);
-            res.type = PITH_VALUE_FLOAT;
-            break;
-        case PITH_FFI_DOUBLE:
-            res.type = PITH_VALUE_FLOAT;
-            break;
-        default:
-            return expr_dummy();
-        }
-        res.borrowed_arc = false;
-        return res;
-    }
-
-    if (strcmp(ns, "os") != 0) {
-        cg_error(g, m->base->loc, pith_utf8_len(ns, strlen(ns)),
-                 "unknown namespace `%s` (missing import?)", ns);
-        return expr_dummy();
-    }
-
-    const OsMember *om = os_member_find(m->member);
-    if (!om) {
-        cg_error(g, n->loc, pith_utf8_len(m->member, strlen(m->member)),
-                 "unknown member `os.%s`", m->member);
-        return expr_dummy();
-    }
-
-    ExprResult v;
-    char t[64];
-    new_tmp(g, t, sizeof(t));
-    if (om->type == PITH_VALUE_BOOL) {
-        EMIT("\t%s =w call %s()\n", t, om->qbe_fn);
-        v.type = PITH_VALUE_BOOL;
-        v.owned = false;
-    } else {
-        EMIT("\t%s =l call %s()\n", t, om->qbe_fn);
-        v.type = PITH_VALUE_STRING;
-        v.owned = true;   /* the runtime transfers a fresh reference */
-    }
-    snprintf(v.ref, sizeof(v.ref), "%s", t);
     v.borrowed_arc = false;
     return v;
 }
@@ -1579,84 +1673,6 @@ char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
                            strlen(g->pending_fns[i].node->as.fn_decl.name)),
              "private function is never referenced; eliminated "
              "(zero-bloat)");
-    }
-
-    /*
-     * Native C imports: for every foreign function, emit a private
-     * namespaced shim forwarding to the real C symbol with the typed
-     * System V AMD64 / AAPCS64 signature:
-     *
-     *   function w $c_math_add(w %a0, w %a1) {
-     *   @start
-     *       %r =w call $add(w %a0, w %a1)
-     *       ret %r
-     *   }
-     *
-     * The shims reference the REAL C symbol ($add): the JIT registers
-     * the compiled import's address under that name; the AOT link
-     * resolves it from the imported object file.
-     */
-    {
-        StrBuf *prev = g->cur;
-        g->cur = &g->funcs;
-
-        for (size_t u = 0; u < g->nimports; u++) {
-        const PithImportUnit *imp = &g->imports[u];
-        char ns_clean[64];
-        qbe_sanitize(imp->ns, ns_clean, sizeof(ns_clean));
-
-        for (size_t f = 0; f < imp->nfn; f++) {
-            const PithForeignFn *fn = &imp->fns[f];
-            char fn_clean[128];
-            qbe_sanitize(fn->name, fn_clean, sizeof(fn_clean));
-
-            /* signature */
-            char sig[256];
-            size_t st = 0;
-            for (size_t i = 0; i < fn->nparams; i++) {
-                if (i) {
-                    sig[st++] = ',';
-                    sig[st++] = ' ';
-                }
-                sig[st++] = ffi_letter(fn->params[i]);
-                if (st + 6 < sizeof(sig))
-                    st += (size_t)snprintf(sig + st, sizeof(sig) - st,
-                                           " %%a%zu", i);
-            }
-            sig[st] = '\0';
-
-            char fwd[512];
-            size_t ft = 0;
-            for (size_t i = 0; i < fn->nparams; i++) {
-                if (i) {
-                    fwd[ft++] = ',';
-                    fwd[ft++] = ' ';
-                }
-                fwd[ft++] = ffi_letter(fn->params[i]);
-                if (ft + 6 < sizeof(fwd))
-                    ft += (size_t)snprintf(fwd + ft, sizeof(fwd) - ft,
-                                           " %%a%zu", i);
-            }
-            fwd[ft] = '\0';
-
-            if (fn->ret == PITH_FFI_VOID) {
-                EMIT("function $c_%s_%s(%s) {\n", ns_clean, fn_clean,
-                     sig);
-                EMIT("@c_%s_%s.start\n", ns_clean, fn_clean);
-                EMIT("\tcall $%s(%s)\n", fn_clean, fwd);
-                EMIT("\tret\n}\n\n");
-            } else {
-                char rl = ffi_letter(fn->ret);
-                EMIT("function %c $c_%s_%s(%s) {\n", rl, ns_clean,
-                     fn_clean, sig);
-                EMIT("@c_%s_%s.start\n", ns_clean, fn_clean);
-                EMIT("\t%%r =%c call $%s(%s)\n", rl, fn_clean, fwd);
-                EMIT("\tret %%r\n}\n\n");
-            }
-        }
-        }
-
-        g->cur = prev;
     }
 
     cg_scope_pop(g);

@@ -407,9 +407,17 @@ typedef struct {
     bool        ret_pith_value;    /* returns PithValue* (+1 ref)      */
 } PithForeignFn;
 
-/* One imported .c translation unit and its discovered prototypes. */
+/*
+ * One imported .c translation unit and its discovered prototypes.
+ *
+ * Namespace scoping: the AUTHOR is derived from the import path's
+ * directory part as written ("alice/os.c" -> author "alice", module
+ * "os"); a bare "os.c" (no directory) is a root-level import whose
+ * symbols join the merged module namespace directly.
+ */
 typedef struct {
-    char ns[64];                   /* namespace (basename sans .c)     */
+    char ns[64];                   /* module name (basename sans .c)   */
+    char author[64];               /* author scope ("" for root level) */
     char path[4096];               /* resolved .c file path            */
     PithForeignFn fns[PITH_FFI_MAX_FNS];
     size_t nfn;
@@ -418,6 +426,17 @@ typedef struct {
 /* The pre-baked <pith.h> text injected into import compilations. */
 const char *pith_cffi_header_text(void);
 
+/*
+ * The author-aware mangled symbol name for an imported function:
+ * `c_<author>_<module>_<name>` (or `c_<module>_<name>` for root-level
+ * imports). This ONE name is used for the QBE call emission, the
+ * compile-time C symbol rename (tcc_define_symbol), the JIT
+ * registration, and the AOT object symbol, so no forwarding shims are
+ * needed.
+ */
+void pith_cffi_mangled_name(const char *author, const char *module,
+                            const char *fn, char *out, size_t n);
+
 /* Scan a .c file's non-static function prototypes. 0 on success. */
 int pith_cffi_scan_file(const char *path, PithImportUnit *out);
 
@@ -425,6 +444,10 @@ int pith_cffi_scan_file(const char *path, PithImportUnit *out);
    *is_pith_value when the type names a PithValue or PithString. */
 PithFfiType pith_cffi_map_type(const char *type_text,
                                bool *is_pith_value);
+
+/* Does the builtin os namespace expose `name`? (public: used by the
+   import discovery for override warnings) */
+int pith_os_member_exists(const char *name);
 
 /* ------------------------------------------------------------------ */
 /* QBE code generator (src/gen_qbe.c)                                 */

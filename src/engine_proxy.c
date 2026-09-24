@@ -509,6 +509,16 @@ static int compile_import_jit(TCCState *main_state,
     for (size_t i = 0; i < NSYMS; i++)
         tcc_add_symbol(cs, runtime_syms[i].name, runtime_syms[i].addr);
 
+    /* rename every exported function to its author-aware mangled
+       name via a preprocessor define: the JIT registers the renamed
+       symbol, matching the QBE call emission exactly */
+    for (size_t f = 0; f < imp->nfn; f++) {
+        char mangled[192];
+        pith_cffi_mangled_name(imp->author, imp->ns, imp->fns[f].name,
+                               mangled, sizeof(mangled));
+        tcc_define_symbol(cs, imp->fns[f].name, mangled);
+    }
+
     if (tcc_add_file(cs, imp->path) < 0) {
         fprintf(stderr, "pith engine: failed to compile the imported "
                         "C unit %s\n", imp->path);
@@ -523,7 +533,10 @@ static int compile_import_jit(TCCState *main_state,
     }
 
     for (size_t f = 0; f < imp->nfn; f++) {
-        void *addr = tcc_get_symbol(cs, imp->fns[f].name);
+        char mangled[192];
+        pith_cffi_mangled_name(imp->author, imp->ns, imp->fns[f].name,
+                               mangled, sizeof(mangled));
+        void *addr = tcc_get_symbol(cs, mangled);
         if (!addr) {
             fprintf(stderr, "pith engine: imported unit %s does not "
                             "export `%s`\n", imp->path,
@@ -531,7 +544,7 @@ static int compile_import_jit(TCCState *main_state,
             tcc_delete(cs);
             return -1;
         }
-        tcc_add_symbol(main_state, imp->fns[f].name, addr);
+        tcc_add_symbol(main_state, mangled, addr);
     }
 
     *out_state = cs;
@@ -777,6 +790,19 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
                         tcc_set_lib_path(cs, tdir0);
                     tcc_set_output_type(cs, TCC_OUTPUT_OBJ);
                     tcc_add_include_path(cs, inc_dir);
+                    /* the same author-aware renames as the JIT path:
+                       the object exports the mangled symbols the QBE
+                       calls reference */
+                    for (size_t f = 0; f < imports[i].nfn; f++) {
+                        char mangled[192];
+                        pith_cffi_mangled_name(imports[i].author,
+                                               imports[i].ns,
+                                               imports[i].fns[f].name,
+                                               mangled,
+                                               sizeof(mangled));
+                        tcc_define_symbol(cs, imports[i].fns[f].name,
+                                          mangled);
+                    }
                     ok = tcc_add_file(cs, imports[i].path) == 0 &&
                          tcc_output_file(cs, imp_objs[nimp_objs]) == 0;
                     tcc_delete(cs);
