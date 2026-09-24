@@ -470,6 +470,10 @@ static const OsMember os_members[] = {
     { "identifyKernel",         "$pith_rt_os_kernel",         PITH_VALUE_STRING },
     { "identifyKernelVersion",  "$pith_rt_os_kernel_version", PITH_VALUE_STRING },
     { "isNT",                   "$pith_rt_is_nt",             PITH_VALUE_BOOL   },
+    { "isLinux",                "$pith_rt_is_linux",          PITH_VALUE_BOOL   },
+    { "isFreeBSD",              "$pith_rt_is_freebsd",        PITH_VALUE_BOOL   },
+    { "isDarwin",               "$pith_rt_is_darwin",         PITH_VALUE_BOOL   },
+    { "isMacOS",                "$pith_rt_is_macos",          PITH_VALUE_BOOL   },
 };
 
 static const OsMember *os_member_find(const char *name)
@@ -941,7 +945,9 @@ static ExprResult gen_binary(Codegen *g, ASTNode *n)
         iname = op == TOK_OP_EQ ? "ceqd"   : op == TOK_OP_NE ? "cned"
               : op == TOK_OP_LT ? "cltd"   : op == TOK_OP_LE ? "cled"
               : op == TOK_OP_GT ? "cgtd"   :                   "cged";
-    } else if (l.type == PITH_VALUE_BOOL && r.type == PITH_VALUE_BOOL) {
+    } else if (l.type == PITH_VALUE_BOOL || r.type == PITH_VALUE_BOOL) {
+        /* word comparison: booleans are w; integer constants are
+           accepted in a w context (low 32 bits) */
         iname = op == TOK_OP_EQ ? "ceqw"   : op == TOK_OP_NE ? "cnew"
               : op == TOK_OP_LT ? "csltw"  : op == TOK_OP_LE ? "cslew"
               : op == TOK_OP_GT ? "csgtw"  :                   "csgew";
