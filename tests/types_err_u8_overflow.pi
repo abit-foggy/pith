@@ -1,0 +1,2 @@
+# [TYPES] u8 bounds overflow — expect compile error
+val: u8 = 256

@@ -1,0 +1,2 @@
+# [TYPES] i8 bounds overflow — expect compile error
+val: i8 = 128

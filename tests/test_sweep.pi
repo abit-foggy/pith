@@ -1,5 +1,5 @@
 # pith feature sweep
-x = 10
+mut x = 10
 x = x + 5
 y = x * 2 - 10
 z = y / 4
@@ -42,7 +42,7 @@ else
     print "sweep: float promotion BROKEN"
 end
 
-a = "pith"
+mut a = "pith"
 a = a + " " + "works"
 if a == "pith works"
     print "sweep: string reassign ok"
@@ -50,7 +50,7 @@ else
     print "sweep: string reassign BROKEN"
 end
 
-s = "a" + "b"
+mut s = "a" + "b"
 s = "c" + "d"
 if s == "cd"
     print "sweep: heap reassign ok"

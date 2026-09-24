@@ -303,22 +303,68 @@ static void release_owned(Codegen *g, const ExprResult *v)
 }
 
 /* Store a value into a variable's stack slot. */
-static void emit_store(Codegen *g, const ExprResult *v, const char *slot)
+/* Storage size in bytes for a sized type. */
+static size_t sized_type_bytes(PithSizedType t)
+{
+    switch (t) {
+    case PITH_SIZED_I8:
+    case PITH_SIZED_U8:   return 1;
+    case PITH_SIZED_I16:
+    case PITH_SIZED_U16:  return 2;
+    case PITH_SIZED_I32:
+    case PITH_SIZED_U32:
+    case PITH_SIZED_F32:  return 4;
+    default:              return 8;   /* i64, u64, f64, AUTO */
+    }
+}
+
+/* Store a value into a variable's stack slot, truncating to the
+   storage width of the sized type. */
+static void emit_store(Codegen *g, const ExprResult *v, const char *slot,
+                       PithSizedType st)
 {
     switch (v->type) {
     case PITH_VALUE_FLOAT:
-        EMIT("\tstored %s, %s\n", v->ref, slot);
+        if (st == PITH_SIZED_F32) {
+            /* truncate double to single, then store */
+            char s[64];
+            new_tmp(g, s, sizeof(s));
+            EMIT("\t%s =s truncd %s\n", s, v->ref);
+            EMIT("\tstores %s, %s\n", s, slot);
+        } else {
+            EMIT("\tstored %s, %s\n", v->ref, slot);
+        }
         break;
     case PITH_VALUE_BOOL:
         EMIT("\tstorew %s, %s\n", v->ref, slot);
         break;
-    default:   /* PITH_VALUE_INT, PITH_VALUE_STRING (l) */
+    case PITH_VALUE_STRING:
         EMIT("\tstorel %s, %s\n", v->ref, slot);
+        break;
+    default:   /* PITH_VALUE_INT */
+        switch (st) {
+        case PITH_SIZED_I8:
+        case PITH_SIZED_U8:
+            EMIT("\tstoreb %s, %s\n", v->ref, slot);
+            break;
+        case PITH_SIZED_I16:
+        case PITH_SIZED_U16:
+            EMIT("\tstoreh %s, %s\n", v->ref, slot);
+            break;
+        case PITH_SIZED_I32:
+        case PITH_SIZED_U32:
+            EMIT("\tstorew %s, %s\n", v->ref, slot);
+            break;
+        default:   /* i64, u64, AUTO: full 64-bit store */
+            EMIT("\tstorel %s, %s\n", v->ref, slot);
+            break;
+        }
         break;
     }
 }
 
-/* Load a variable's stack slot into a fresh temporary. */
+/* Load a variable's stack slot into a fresh temporary, extending
+   to the full 64-bit register width for arithmetic. */
 static void emit_load(Codegen *g, const ScopeVar *var, ExprResult *out)
 {
     char slot[160];
@@ -328,18 +374,50 @@ static void emit_load(Codegen *g, const ScopeVar *var, ExprResult *out)
 
     switch (var->var_type) {
     case PITH_VALUE_FLOAT:
-        EMIT("\t%s =d loadd %s\n", t, slot);
+        if (var->sized_type == PITH_SIZED_F32) {
+            /* load single-precision, extend to double */
+            char s[64];
+            new_tmp(g, s, sizeof(s));
+            EMIT("\t%s =s loads %s\n", s, slot);
+            EMIT("\t%s =d exts %s\n", t, s);
+        } else {
+            EMIT("\t%s =d loadd %s\n", t, slot);
+        }
         out->type = PITH_VALUE_FLOAT;
         break;
     case PITH_VALUE_BOOL:
         EMIT("\t%s =w loadw %s\n", t, slot);
         out->type = PITH_VALUE_BOOL;
         break;
-    default:   /* PITH_VALUE_INT, PITH_VALUE_STRING (l) */
+    case PITH_VALUE_STRING:
         EMIT("\t%s =l loadl %s\n", t, slot);
-        out->type = var->var_type == PITH_VALUE_STRING
-                        ? PITH_VALUE_STRING
-                        : PITH_VALUE_INT;
+        out->type = PITH_VALUE_STRING;
+        break;
+    default:   /* PITH_VALUE_INT */
+        switch (var->sized_type) {
+        case PITH_SIZED_I8:
+            EMIT("\t%s =l loadsb %s\n", t, slot);
+            break;
+        case PITH_SIZED_U8:
+            EMIT("\t%s =l loadub %s\n", t, slot);
+            break;
+        case PITH_SIZED_I16:
+            EMIT("\t%s =l loadsh %s\n", t, slot);
+            break;
+        case PITH_SIZED_U16:
+            EMIT("\t%s =l loaduh %s\n", t, slot);
+            break;
+        case PITH_SIZED_I32:
+            EMIT("\t%s =l loadsw %s\n", t, slot);
+            break;
+        case PITH_SIZED_U32:
+            EMIT("\t%s =l loaduw %s\n", t, slot);
+            break;
+        default:   /* i64, u64, AUTO: full 64-bit load */
+            EMIT("\t%s =l loadl %s\n", t, slot);
+            break;
+        }
+        out->type = PITH_VALUE_INT;
         break;
     }
 
@@ -1008,13 +1086,22 @@ static void gen_assignment(Codegen *g, ASTNode *n)
         }
         var->var_type = PITH_VALUE_ERROR;
         var->is_arc = false;
+        var->is_mut = a->is_mut;
+        var->sized_type = a->has_explicit_type
+                              ? a->sized_type
+                              : PITH_SIZED_AUTO;
         var->slot = ++g->slot;
         var->next = g->scope->vars;
         g->scope->vars = var;
 
+        /* sized allocation: small types use alloc4 (aligned), 8-byte
+           types use alloc8 */
         char slot[160];
         var_slot_name(var, slot, sizeof(slot));
-        EMIT("\t%s =l alloc8 8\n", slot);   /* is_declaration: allocate */
+        if (sized_type_bytes(var->sized_type) <= 4)
+            EMIT("\t%s =l alloc4 4\n", slot);
+        else
+            EMIT("\t%s =l alloc8 8\n", slot);
     } else {
         var = cg_lookup(g, a->var_name);
         if (!var) {
@@ -1048,10 +1135,10 @@ static void gen_assignment(Codegen *g, ASTNode *n)
         EMIT("\tcall $pith_release(l %s)\n", t);
     }
 
-    /* 4. store */
+    /* 4. store (truncated to the variable's storage width) */
     char slot[160];
     var_slot_name(var, slot, sizeof(slot));
-    emit_store(g, &v, slot);
+    emit_store(g, &v, slot, var->sized_type);
 
     /* 5. record the variable's new type and ARC-ness */
     var->var_type = v.type == PITH_VALUE_ERROR ? var->var_type : v.type;

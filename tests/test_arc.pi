@@ -1,5 +1,5 @@
 # ARC stress: exercise retain/release paths heavily
-s = "first"
+mut s = "first"
 s = s + " + second"
 s = s + " + third"
 s = s + " + fourth"
@@ -31,7 +31,7 @@ else
     print "arc: runtime string BROKEN"
 end
 
-d = os.identifyKernel
+mut d = os.identifyKernel
 d = d + "!"
 if d == "linux!"
     print "arc: runtime reassign ok"
