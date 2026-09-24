@@ -147,7 +147,7 @@ static char *compile_frontend(const char **paths, size_t count,
             total_errors++;
             programs[i] = NULL;
             unit_paths[i] = paths[i];
-            unit_sources[i] = "";
+            unit_sources[i] = strdup("");   /* heap-owned; freed below */
             continue;
         }
 
@@ -254,6 +254,13 @@ static char *compile_frontend(const char **paths, size_t count,
                         continue;
                     }
                     nimports++;
+
+                    if (strcmp(imports[nimports - 1].ns, "os") == 0)
+                        pith_emit_diagnostic("warning",
+                                             "import `os` shadows the "
+                                             "builtin os namespace",
+                                             paths[u], unit_sources[u],
+                                             st->loc.line, st->loc.col, 2);
                 }
             }
 

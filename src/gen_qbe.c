@@ -643,6 +643,38 @@ static ExprResult gen_call(Codegen *g, ASTNode *n)
 
     const PithImportUnit *u = find_import(g, ns);
     if (!u) {
+        /* no import with this namespace: fall back to the builtin os
+           namespace (its members are zero-arg accesses) */
+        if (strcmp(ns, "os") == 0) {
+            const OsMember *om = os_member_find(fname);
+            if (!om) {
+                cg_error(g, call->callee->loc,
+                         pith_utf8_len(fname, strlen(fname)),
+                         "unknown member `os.%s`", fname);
+                return dummy;
+            }
+            if (call->arg_count != 0) {
+                cg_error(g, n->loc, 1,
+                         "`os.%s` is a property and takes no arguments",
+                         fname);
+                return dummy;
+            }
+            ExprResult res;
+            memset(&res, 0, sizeof(res));
+            char t[64];
+            new_tmp(g, t, sizeof(t));
+            if (om->type == PITH_VALUE_BOOL) {
+                EMIT("\t%s =w call %s()\n", t, om->qbe_fn);
+                res.type = PITH_VALUE_BOOL;
+            } else {
+                EMIT("\t%s =l call %s()\n", t, om->qbe_fn);
+                res.type = PITH_VALUE_STRING;
+                res.owned = true;
+            }
+            snprintf(res.ref, sizeof(res.ref), "%s", t);
+            res.borrowed_arc = false;
+            return res;
+        }
         cg_error(g, call->callee->loc, pith_utf8_len(ns, strlen(ns)),
                  "unknown import namespace `%s` (missing import?)", ns);
         return dummy;
@@ -781,11 +813,90 @@ static ExprResult expr_dummy(void)
 static ExprResult gen_member_access(Codegen *g, ASTNode *n)
 {
     ASTMemberAccess *m = &n->as.member_access;
-    if (m->base->type != AST_IDENTIFIER_EXPR ||
-        strcmp(m->base->as.identifier, "os") != 0) {
+    if (m->base->type != AST_IDENTIFIER_EXPR) {
         cg_error(g, m->base->loc, 2,
                  "unknown namespace in member access "
-                 "(v0.1 only knows `os.*`)", "");
+                 "(namespaces are `os.*` or imported modules)", "");
+        return expr_dummy();
+    }
+    const char *ns = m->base->as.identifier;
+
+    /*
+     * Imports shadow the builtin os namespace: an `import "os.c"`
+     * makes every os.* access resolve to the import, bare or called.
+     */
+    const PithImportUnit *u = find_import(g, ns);
+    if (u) {
+        const PithForeignFn *fn = find_foreign_fn(u, m->member);
+        if (!fn) {
+            cg_error(g, n->loc,
+                     pith_utf8_len(m->member, strlen(m->member)),
+                     "import `%s` has no exported member `%s`",
+                     u->ns, m->member);
+            return expr_dummy();
+        }
+        if (fn->nparams != 0) {
+            cg_error(g, n->loc,
+                     pith_utf8_len(m->member, strlen(m->member)),
+                     "member `%s.%s` expects %zu argument%s; call it "
+                     "with (...)", u->ns, m->member, fn->nparams,
+                     fn->nparams == 1 ? "" : "s");
+            return expr_dummy();
+        }
+        /* zero-param member: called like a builtin property */
+        char ns_clean[64], fn_clean[128];
+        qbe_sanitize(u->ns, ns_clean, sizeof(ns_clean));
+        qbe_sanitize(fn->name, fn_clean, sizeof(fn_clean));
+
+        ExprResult res;
+        memset(&res, 0, sizeof(res));
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        if (fn->ret == PITH_FFI_VOID) {
+            EMIT("\tcall $c_%s_%s()\n", ns_clean, fn_clean);
+            res.type = PITH_VALUE_ERROR;
+            res.owned = false;
+            res.borrowed_arc = false;
+            snprintf(res.ref, sizeof(res.ref), "0");
+            return res;
+        }
+        char r[64];
+        new_tmp(g, r, sizeof(r));
+        EMIT("\t%s =%c call $c_%s_%s()\n", r, ffi_letter(fn->ret),
+             ns_clean, fn_clean);
+        snprintf(res.ref, sizeof(res.ref), "%s", r);
+
+        switch (fn->ret) {
+        case PITH_FFI_WORD:
+            new_tmp(g, r, sizeof(r));
+            EMIT("\t%s =l extsw %s\n", r, res.ref);
+            snprintf(res.ref, sizeof(res.ref), "%s", r);
+            res.type = PITH_VALUE_INT;
+            break;
+        case PITH_FFI_LONG:
+            res.type = fn->ret_pith_value ? PITH_VALUE_STRING
+                                          : PITH_VALUE_INT;
+            res.owned = fn->ret_pith_value;
+            break;
+        case PITH_FFI_SINGLE:
+            new_tmp(g, r, sizeof(r));
+            EMIT("\t%s =d exts %s\n", r, res.ref);
+            snprintf(res.ref, sizeof(res.ref), "%s", r);
+            res.type = PITH_VALUE_FLOAT;
+            break;
+        case PITH_FFI_DOUBLE:
+            res.type = PITH_VALUE_FLOAT;
+            break;
+        default:
+            return expr_dummy();
+        }
+        res.borrowed_arc = false;
+        return res;
+    }
+
+    if (strcmp(ns, "os") != 0) {
+        cg_error(g, m->base->loc, pith_utf8_len(ns, strlen(ns)),
+                 "unknown namespace `%s` (missing import?)", ns);
         return expr_dummy();
     }
 
