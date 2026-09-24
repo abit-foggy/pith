@@ -1,31 +1,22 @@
 # Language Reference
 
-Pith is a bracketless, semicolon-free systems-scripting language. This page covers the complete syntax and semantics.
+Pith is a bracketless, semicolon-free systems-scripting language.
+Statements are newline-delimited; blocks close with a single `end`.
 
 ## Statements
-
-Every statement lives on its own line. No semicolons, no braces.
-
-```pith
-x = 10
-print "hello"
-if x == 10
-    print "ten"
-end
-```
 
 ### Assignment
 
 `name = expr` declares a new variable when the name exists nowhere in
-any enclosing scope; it reassigns when the name already exists.
+any enclosing scope; it reassigns when the name already exists:
 
 ```pith
 x = 10          # declaration: x doesn't exist yet
 x = x + 5       # reassignment: x exists in this scope
 ```
 
-Names must be `lowerCamelCase` — the compiler warns on a capital
-first letter. There is no `let`, `var`, or type annotation.
+No `let`, `var`, or type annotations. Names must be `lowerCamelCase`
+— the compiler warns on a capital first letter.
 
 ### print
 
@@ -37,8 +28,8 @@ print "Running on " + os.identifyKernel
 
 ### return
 
-Exits the enclosing function (or `$main` at the top level). Takes an
-optional expression:
+Exits the enclosing function (or `$main`). Takes an optional
+expression:
 
 ```pith
 fn getAnswer
@@ -55,12 +46,11 @@ import "ffi/math.c"
 sum = math.addInts(3, 4)
 ```
 
-See the [C Imports](/ffi) page for the full pipeline.
+See [C Imports (FFI)](/ffi).
 
 ### fn (top-level only)
 
-Declares a private function (emitted but not callable from other
-units in v0.1):
+Declares a private function:
 
 ```pith
 fn myHelper
@@ -72,9 +62,6 @@ end
 
 ### if / elseif / else / end
 
-No parentheses, no colons — the condition is just an expression
-followed by a newline:
-
 ```pith
 if os.identifyKernel == "linux"
     print "linux"
@@ -85,44 +72,37 @@ else
 end
 ```
 
-Branches can nest arbitrarily deep (up to 256 levels — the compiler
-rejects deeper nesting with a clean diagnostic, not a stack overflow).
-Blocks may be empty:
-
-```pith
-if 1 == 0
-else
-end
-```
+No parentheses, no colons — the condition is just an expression
+followed by a newline. Blocks may nest up to 256 levels (the
+compiler rejects deeper nesting with a clean diagnostic, not a stack
+overflow) and may be empty.
 
 ## Expressions
 
-### Operators
+### Operator precedence
 
-| Precedence (low→high) | Operators |
+| Level (low→high) | Operators |
 |---|---|
 | Equality | `==` `!=` |
 | Comparison | `<` `<=` `>` `>=` |
 | Additive | `+` `-` |
 | Multiplicative | `*` `/` |
 | Unary | `-` (negation) |
-| Member access / call | `.` `(args)` |
+| Postfix | `.` (member access), `(...)` (call) |
 
-Parentheses group subexpressions (up to 128 levels of nesting — deeper
-expressions are rejected with a clean diagnostic).
+Parentheses group subexpressions (up to 128 levels).
 
 ### Types
 
-| Pith type | QBE type | Description |
+| Pith type | QBE type | Size |
 |---|---|---|
-| `integer` | `l` (64-bit) | Signed 64-bit two's-complement |
-| `float` | `d` (64-bit) | IEEE 754 double |
-| `string` | `l` (pointer) | Refcounted `PithValue` |
-| `boolean` | `w` (32-bit) | 0 or 1 |
+| integer | `l` | 64-bit signed two's-complement |
+| float | `d` | IEEE 754 double |
+| string | `l` (pointer) | Refcounted `PithValue` |
+| boolean | `w` | 32-bit (0 or 1) |
 
-Type inference is purely lexical: the type of an expression is
-determined by its operands. Mixed int/float arithmetic promotes the
-int to float. String `+` concatenates; numeric `+` adds.
+Mixed int/float arithmetic promotes the int to float. String `+`
+concatenates; numeric `+` adds.
 
 ### String literals
 
@@ -131,7 +111,7 @@ Double-quoted with C-style escapes:
 ```pith
 s = "hello\tworld"
 q = "quote:\"back\\slash"
-n = "a\0b"        # embedded NUL — length-aware, lossless
+n = "a\0b"         # embedded NUL — lossless
 u = "ünïcødé → ✓"  # UTF-8 payload bytes
 ```
 
@@ -147,33 +127,19 @@ os.isNT                    # -> 1 on Windows NT, 0 elsewhere
 
 ### Function calls (FFI)
 
-Calls use postfix syntax on a namespace member:
-
 ```pith
 result = math.addInts(3, 4)
 math.logNote(42)     # void calls may be bare statements
 ```
 
-See [C Imports](/ffi) for how namespaces are created.
-
 ## Memory model
 
-Pith uses **deterministic Automated Reference Counting** (ARC). The
-compiler injects retain/release calls at scope boundaries — you never
-manage memory manually.
-
-- **Declarations** allocate a stack slot (`alloc8`) and store the value.
-- **Reassignments** release the old value before storing the new one.
-- **Scope exits** (`end`, `return`) release every local ARC allocation.
-- **String concatenation** produces a fresh owned value, released when
-  its consuming scope exits.
-
-Static string literals are immortal (flagged `PITH_FLAG_STATIC`) —
-retain and release are no-ops on them.
+Deterministic ARC — the compiler injects retain/release at scope
+boundaries. See [Runtime & Memory](/runtime).
 
 ## Comments
 
-`#` starts a line comment (like Lua):
+`#` starts a line comment:
 
 ```pith
 # this is a comment
@@ -182,12 +148,12 @@ x = 1  # trailing comment
 
 ## Diagnostics
 
-Errors and warnings are rustc-style with source preview, line numbers,
-and a colored caret pointer:
+Errors use rustc-style output with source preview, line numbers, and
+a colored caret:
 
 ```
 error: use of undeclared identifier `undefinedVar`
-  --> tests/test_err1.pi:1:7
+  --> script.pi:1:7
    |
  1 | print undefinedVar
    |       ^~~~~~~~~~~~

@@ -8,7 +8,7 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /getting-started
+      link: /getting-started/installation
     - theme: alt
       text: Language Reference
       link: /language

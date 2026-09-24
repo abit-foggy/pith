@@ -1,13 +1,12 @@
 import { defineConfig } from 'vitepress'
 
-// Infer repo name for base path; adjust if using custom domain
 const base = process.env.GITHUB_REPOSITORY
   ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
   : '/'
 
 export default defineConfig({
-  title: 'Pith Docs',
-  description: 'Documentation for Pith',
+  title: 'Pith',
+  description: 'A dead-simple, bracketless systems-scripting language compiled via QBE',
   base: base,
   themeConfig: {
     search: {
@@ -15,24 +14,42 @@ export default defineConfig({
     },
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Guide', link: '/getting-started' },
+      { text: 'Get Started', link: '/getting-started/installation' },
       { text: 'Language', link: '/language' },
+      { text: 'CLI', link: '/cli/run' },
       { text: 'FFI', link: '/ffi' },
-      { text: 'Runtime', link: '/runtime' },
     ],
     sidebar: [
       {
         text: 'Getting Started',
         items: [
-          { text: 'Introduction', link: '/getting-started' },
+          { text: 'Installation', link: '/getting-started/installation' },
+          { text: 'Your First Script', link: '/getting-started/first-script' },
+          { text: 'Setting Up a Project', link: '/getting-started/project-setup' },
         ],
       },
       {
-        text: 'Reference',
+        text: 'Language Reference',
         items: [
-          { text: 'Language Syntax', link: '/language' },
-          { text: 'CLI Commands', link: '/cli' },
-          { text: 'Runtime & Memory', link: '/runtime' },
+          { text: 'Syntax & Semantics', link: '/language' },
+          { text: 'Runtime & Memory Model', link: '/runtime' },
+        ],
+      },
+      {
+        text: 'Configuration',
+        items: [
+          { text: 'pith.toml & pith.lock', link: '/config' },
+        ],
+      },
+      {
+        text: 'CLI Reference',
+        items: [
+          { text: 'pith run', link: '/cli/run' },
+          { text: 'pith build', link: '/cli/build' },
+          { text: 'pith decompile', link: '/cli/decompile' },
+          { text: 'pith pkg', link: '/cli/pkg' },
+          { text: 'pith engine', link: '/cli/engine' },
+          { text: 'Custom Tasks', link: '/cli/tasks' },
         ],
       },
       {
