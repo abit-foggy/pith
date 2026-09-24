@@ -73,6 +73,18 @@ PithValue *pith_rt_os_kernel_version(void);
 /* 1 on Windows NT, 0 elsewhere. */
 int32_t pith_rt_is_nt(void);
 
+/* 1 on Linux, 0 elsewhere. */
+int32_t pith_rt_is_linux(void);
+
+/* 1 on FreeBSD, 0 elsewhere. */
+int32_t pith_rt_is_freebsd(void);
+
+/* 1 when the kernel is Darwin (macOS and other Darwin systems). */
+int32_t pith_rt_is_darwin(void);
+
+/* 1 only on Apple macOS (Apple-specific, not generic Darwin). */
+int32_t pith_rt_is_macos(void);
+
 /* Print the string data to stdout. */
 void pith_rt_print(PithValue *str);
 

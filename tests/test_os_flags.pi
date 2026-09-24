@@ -1,0 +1,19 @@
+if os.isLinux
+    print "os flags: all present ok"
+end
+mut checks = 0
+if os.isDarwin == 0
+    mut checks = checks + 1
+end
+if os.isMacOS == 0
+    mut checks = checks + 1
+end
+if os.isFreeBSD == 0
+    mut checks = checks + 1
+end
+if os.isNT == 0
+    mut checks = checks + 1
+end
+if checks == 4
+    print "os flags: all 5 builtins ok"
+end
