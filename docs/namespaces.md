@@ -4,23 +4,34 @@ Namespaces are fixed roots that expose related functions through
 dotted member access: `os.identifyKernel`, `math.addInts`. A
 namespace member used alone is a value; with `(args)` it is a call.
 
-Pith has two kinds of namespaces:
+Pith namespaces are organized in a **scope hierarchy**:
 
-1. **The builtin `os` namespace**, compiled into the runtime
-2. **FFI namespaces**, created by `import "module.c"` statements
+1. **The root scope** (`root.os.*`), the base runtime implementation
+2. **The merged module view** (`os.*`), the builtin plus active
+   import overrides
+3. **Developer scopes** (`alice.os.*`), an imported author's module
+
+## The scope hierarchy
+
+```
+root.os.identifyKernel     <- base runtime (no overrides, ever)
+os.identifyKernel          <- merged view (overrides apply)
+alice.os.identifyKernel    <- alice's import (direct)
+```
 
 ## The builtin `os` namespace
 
 The `os` namespace exposes platform identification. It is always
-available, no import needed:
+available, no import needed, through BOTH the unadorned namespace and
+the explicit root scope:
 
 ```pith
 if os.isLinux
     print "running on linux"
 end
 
-kernel = os.identifyKernel
-version = os.identifyKernelVersion
+kernel = os.identifyKernel           # merged view
+base = root.os.identifyKernel        # base runtime, bypassing overrides
 ```
 
 ### Members
@@ -55,82 +66,118 @@ if os.isMacOS
 end
 ```
 
-### String members are ARC values
+## Developer-scoped imports
 
-`os.identifyKernel` and `os.identifyKernelVersion` return freshly
-allocated strings: assigning one to a variable makes the variable an
-ARC owner, and the value is released at scope exit. Using one
-directly (e.g. in a comparison or `print`) releases the temporary
-right after its single use.
+An `import "path.c"` statement creates a namespace from the path:
 
-### Boolean members
-
-The `is*` members return 32-bit booleans. Comparing them with integer
-literals works (`os.isNT == 0`), as do direct truthiness checks
-(`if os.isNT`).
-
-## FFI namespaces
-
-An `import "path.c"` statement creates a namespace from the file's
-basename (sans `.c`). Every non-static function the C file exports
-becomes a member:
+- `import "os.c"` (no directory): a **root-level import**, its symbols
+  join the merged `os.*` view directly
+- `import "alice/os.c"` (with a directory): a **developer-scoped
+  import**, the directory is the author scope, accessible as
+  `alice.os.*`
 
 ```pith
-import "ffi/math.c"
+import "alice/os.c"
 
-sum = math.addInts(3, 4)      # call with args
-math.logNote(42)              # void call as a bare statement
+alice.os.identifyKernel()     # alice's export, direct
 ```
 
-- Calls are **typed**: the compiler scans the C file's prototypes and
-  emits type conversions at every boundary
-- String parameters are **borrows**; `PithValue*` returns are **owned
-  values** (+1 reference, released at scope exit)
-- Two imports may not export the same symbol (the linker would
-  collide); the JIT's per-import state isolation prevents most cases
+Every non-static function the C file exports becomes a member of the
+author's module namespace.
 
-See [C Imports (FFI)](/ffi) for the full pipeline and ABI contract.
+## Symbol overlay and override precedence
 
-## Conflicts and shadowing
+Imports do NOT shadow a namespace entirely. Instead, each symbol
+merges into the module's namespace view:
 
-### Import vs the builtin os namespace
+### Fallback / pass-through
 
-`import "os.c"` creates a namespace named `os`, which collides with
-the builtin. The rule: **imports shadow the builtin, everywhere**.
+If the builtin exposes a member the import does not define, the
+unqualified lookup resolves cleanly to the base implementation:
 
 ```pith
-import "os.c"
+import "alice/os.c"    # alice only overrides identifyKernel
 
-os.identifyKernel()     # -> the import's identifyKernel (called)
-os.identifyKernel       # -> the import's identifyKernel (bare access)
+if os.isNT == 0        # os.isNT is NOT overridden: the builtin runs
+    print "builtin isNT"
+end
 ```
 
-- The compiler emits a warning: `import 'os' shadows the builtin os
-  namespace`
-- Every `os.*` access (bare or called) resolves to the import
-- Builtin members are hidden; to reach them, remove the import
+### Selective override
 
-The import's members must follow the builtin's property semantics for
-bare access: a bare `os.member` resolves only when the member takes
-zero parameters. Members with parameters must be called:
+If both the builtin and an imported author module define the same
+member, the imported author's symbol takes precedence in the
+unqualified lookup:
 
 ```pith
-os.add(1, 2)     # ok (call)
-os.add           # error: member `os.add` expects 2 arguments; call it with (...)
+import "alice/os.c"    # alice overrides identifyKernel
+
+os.identifyKernel()    # -> alice.os.identifyKernel()
 ```
 
-### Resolution order
+The compiler emits an informational note at import time:
 
-| Access form | Import exists? | Resolves to |
-|---|---|---|
-| `ns.member` (bare) | yes | the import's member (zero-param only) |
-| `ns.member` (bare) | no, ns == `os` | the builtin member |
-| `ns.member(...)` (call) | yes | the import's function |
-| `ns.member(...)` (call) | no, ns == `os` | the builtin member (zero-arg) |
-| either form | no, other ns | error: unknown namespace |
+```
+note: alice.os.identifyKernel overrides os.identifyKernel
+```
 
-### Variable vs namespace shadowing
+### Fully-qualified disambiguation
 
-Declaring a variable named `os` also shadows the builtin in call
-position (the compiler warns). FFI namespaces take precedence over
-variables in member-access position.
+- `alice.os.identifyKernel` always resolves directly to Alice's
+  export, bypassing all overrides
+- `root.os.identifyKernel` always resolves to the base runtime
+  implementation, bypassing all overrides
+
+```pith
+import "alice/os.c"
+
+if os.identifyKernel == "alice"           # override wins
+if root.os.identifyKernel == "linux"      # base runtime wins
+if alice.os.identifyKernel == "alice"     # alice direct
+```
+
+## Resolution order
+
+The compiler uses identical resolution logic for calls
+(`ns.member(...)`) and bare accesses (`ns.member`):
+
+1. **Fully-qualified path** (`author.module.symbol` or
+   `root.module.symbol`): direct layer lookup
+2. **Unqualified** (`module.symbol`): the overlay table (active
+   imports, newest first), then the root base table
+3. If unresolved in all layers: `unknown member or namespace` error
+
+| Access | Resolves to |
+|---|---|
+| `root.os.identifyKernel` | the base runtime, always |
+| `alice.os.identifyKernel` | alice's import, always |
+| `os.identifyKernel` (alice imported) | alice's (override) |
+| `os.identifyKernel` (no import) | the builtin |
+| `os.isNT` (alice imported) | the builtin (not overridden) |
+
+## Arity rules
+
+Strict arity validation across both bare and call lookups:
+
+- Bare access to a multi-parameter function: error
+  (`member 'os.add' expects 2 arguments; call it with (...)`)
+- Bare access to a zero-parameter member: called like a property
+- Calls: the argument count must match exactly
+
+## ARC at namespace boundaries
+
+String members are ARC values: assigning one to a variable makes the
+variable an owner, and the value is released at scope exit. Using one
+directly (comparison, print) releases the temporary right after its
+single use.
+
+## Codegen
+
+Each imported function's symbols are renamed at C compile time to an
+author-aware mangled name (`c_<author>_<module>_<name>`), so:
+
+- The QBE calls reference the mangled name directly (no forwarding
+  shims)
+- The JIT registers the renamed symbol; duplicate exports across
+  imports never collide
+- The AOT object exports the mangled name; the link resolves exactly
