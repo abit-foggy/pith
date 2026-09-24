@@ -91,8 +91,46 @@ math.logNote(42)              # void call as a bare statement
 
 See [C Imports (FFI)](/ffi) for the full pipeline and ABI contract.
 
-## Shadowing
+## Conflicts and shadowing
 
-Declaring a variable named `os` shadows the builtin namespace (the
-compiler warns). FFI namespaces cannot be shadowed by variables in
-call position, the compiler resolves imports first.
+### Import vs the builtin os namespace
+
+`import "os.c"` creates a namespace named `os`, which collides with
+the builtin. The rule: **imports shadow the builtin, everywhere**.
+
+```pith
+import "os.c"
+
+os.identifyKernel()     # -> the import's identifyKernel (called)
+os.identifyKernel       # -> the import's identifyKernel (bare access)
+```
+
+- The compiler emits a warning: `import 'os' shadows the builtin os
+  namespace`
+- Every `os.*` access (bare or called) resolves to the import
+- Builtin members are hidden; to reach them, remove the import
+
+The import's members must follow the builtin's property semantics for
+bare access: a bare `os.member` resolves only when the member takes
+zero parameters. Members with parameters must be called:
+
+```pith
+os.add(1, 2)     # ok (call)
+os.add           # error: member `os.add` expects 2 arguments; call it with (...)
+```
+
+### Resolution order
+
+| Access form | Import exists? | Resolves to |
+|---|---|---|
+| `ns.member` (bare) | yes | the import's member (zero-param only) |
+| `ns.member` (bare) | no, ns == `os` | the builtin member |
+| `ns.member(...)` (call) | yes | the import's function |
+| `ns.member(...)` (call) | no, ns == `os` | the builtin member (zero-arg) |
+| either form | no, other ns | error: unknown namespace |
+
+### Variable vs namespace shadowing
+
+Declaring a variable named `os` also shadows the builtin in call
+position (the compiler warns). FFI namespaces take precedence over
+variables in member-access position.
