@@ -1,33 +1,6 @@
 # Getting Started
 
-Pith is a dead-simple, bracketless systems-scripting language that
-compiles directly to native machine code via QBE. No garbage
-collectors, no virtual machines, no heavyweight compiler drivers on
-the hot path.
-
-## The language shape
-
-```pith
-# System audit test
-if os.identifyKernel == "linux"
-    kernelVersion = os.identifyKernelVersion
-    print "Running smoothly on Linux kernel version: " + kernelVersion
-elseif os.isNT
-    print "Running safely on Windows NT architecture."
-else
-    print "Running on an alternative platform."
-end
-```
-
-- **Bracketless blocks** closed by a single `end` (Lua/Julia style).
-- **No `let`/`var`/annotations**: `name = expr` declares when the name
-  exists nowhere yet, reassigns when it does. Names are lowerCamelCase.
-- **Deterministic ARC** on strings: retain/release calls are injected at
-  scope boundaries (`end`, reassignments). Zero tracing GC.
-- **Builtin namespace**: `os.identifyKernel`, `os.identifyKernelVersion`,
-  `os.isNT`.
-
-## Installation
+## Install
 
 From GitHub releases:
 
@@ -47,19 +20,105 @@ External tools needed at runtime: `qbe` (QBE compiler) and `as` (GNU
 binutils). The vendored tcc is a git submodule; the build compiles it
 automatically.
 
-## Running and building
+## Your first script
 
-```sh
-pith run script.pi       # instant pipeline: QBE IR -> assembly -> libtcc in-memory
-pith build script.pi     # AOT: linked into a standalone native binary
-pith decompile script.pi # print the generated QBE SSA IR
+Create a file called `hello.pi`:
+
+```pith
+x = "hello"
+if x == "hello"
+    print x + ", pith!"
+end
 ```
 
-## Next steps
+Run it:
 
-- Read the full [README](https://github.com/abit-foggy/pith/blob/main/README.md)
-  for the package manager, toolchain proxying, custom tasks, and the
-  embeddable C ABI.
-- Browse the test suite under
-  [tests/](https://github.com/abit-foggy/pith/tree/main/tests) for
-  language feature examples.
+```sh
+pith run hello.pi
+```
+
+Output:
+
+```
+hello, pith!
+```
+
+## Build a native binary
+
+```sh
+pith build hello.pi
+./hello
+```
+
+The output is a fully standalone native executable — no VM, no
+interpreter, no runtime dependency beyond libc.
+
+## Decompile
+
+Inspect the generated QBE IL:
+
+```sh
+pith decompile hello.pi
+```
+
+```qbe
+data $str.1 = { w 1, h 3, h 1, w 7, w 6, b "hello", b 0 }
+
+export function w $main() {
+@main.start
+    %.v1_x =l alloc8 8
+    storel $str.1, %.v1_x
+    %.t1 =l loadl %.v1_x
+    %.t2 =w call $pith_str_equals(l %.t1, l $str.1)
+    jnz %.t2, @L2, @L3
+@L2
+    %.t3 =l loadl %.v1_x
+    %.t4 =l call $pith_str_concat(l %.t3, l $str.2)
+    call $pith_rt_print(l %.t4)
+    call $pith_release(l %.t4)
+    jmp @L1
+@L3
+@L1
+@main.exit
+    ret 0
+}
+```
+
+Notice:
+- `alloc8 8` — the variable's stack slot
+- `call $pith_str_concat` — string `+` lowered to a runtime call
+- `call $pith_release` — deterministic ARC at the scope boundary
+
+## Import C code
+
+Write a small C module:
+
+```c
+/* ffi/math.c */
+#include <pith.h>
+
+int addInts(int a, int b)
+{
+    return a + b;
+}
+```
+
+Then use it from pith:
+
+```pith
+import "ffi/math.c"
+sum = math.addInts(3, 4)
+if sum == 7
+    print "ffi works!"
+end
+```
+
+See the [C Imports](/ffi) page for the full ABI contract.
+
+## What's next
+
+- [Language Reference](/language) — complete syntax and semantics
+- [C Imports (FFI)](/ffi) — typed native C calls with ARC handoffs
+- [Runtime & Memory](/runtime) — the PithValue ABI and ARC internals
+- [Embeddable C ABI](/embed) — host pith in your C/C++ application
+- [CLI Reference](/cli) — run, build, decompile, pkg, engine, tasks
