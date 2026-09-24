@@ -28,7 +28,7 @@ hello, pith!
 
 This takes the instant pipeline: lex → parse → QBE IR → `qbe` →
 assembly → **libtcc in-memory** → executed natively. No temp
-executable, no heavyweight compiler driver — the compiled object is
+executable, no heavyweight compiler driver, the compiled object is
 loaded directly into host memory.
 
 ## Build a standalone binary
@@ -73,9 +73,9 @@ export function w $main() {
 ```
 
 Notice:
-- `alloc8 8` — every variable lives in its own stack slot
-- `call $pith_str_concat` — the `+` operator on strings lowered to a runtime call
-- `call $pith_release` — deterministic ARC at the scope boundary (the `end`)
+- `alloc8 8`, every variable lives in its own stack slot
+- `call $pith_str_concat`, the `+` operator on strings lowered to a runtime call
+- `call $pith_release`, deterministic ARC at the scope boundary (the `end`)
 
 ## Import C code
 
@@ -112,7 +112,7 @@ if scaled == 3.0
 end
 ```
 
-Run it — both the JIT and AOT paths support imports:
+Run it, both the JIT and AOT paths support imports:
 
 ```sh
 pith run script.pi
@@ -123,6 +123,6 @@ See [C Imports (FFI)](/ffi) for the full ABI contract and type mapping.
 
 ## Next steps
 
-- [Setting Up a Project](/getting-started/project-setup) — pith.toml, multi-file builds, tasks
-- [Language Reference](/language) — complete syntax and semantics
-- [CLI Reference](/cli/run) — every command in detail
+- [Setting Up a Project](/getting-started/project-setup), pith.toml, multi-file builds, tasks
+- [Language Reference](/language), complete syntax and semantics
+- [CLI Reference](/cli/run), every command in detail

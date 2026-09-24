@@ -76,11 +76,11 @@ and exits with status 1.
 ### Security
 
 The tar extraction is hardened against:
-- **Path traversal** (`../../` components) — rejected before any
+- **Path traversal** (`../../` components), rejected before any
   filesystem access
-- **Absolute paths** (`/etc/passwd`) — rejected
-- **Empty path components** (`a//b`) — rejected
-- **Corrupt headers** (missing ustar magic) — rejected
-- **Implausibly huge declared sizes** — rejected against the actual
+- **Absolute paths** (`/etc/passwd`), rejected
+- **Empty path components** (`a//b`), rejected
+- **Corrupt headers** (missing ustar magic), rejected
+- **Implausibly huge declared sizes**, rejected against the actual
   buffer
-- **Truncated blocks** — handled gracefully, nothing written
+- **Truncated blocks**, handled gracefully, nothing written

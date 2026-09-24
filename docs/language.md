@@ -16,7 +16,7 @@ x = x + 5       # reassignment: x exists in this scope
 ```
 
 No `let`, `var`, or type annotations. Names must be `lowerCamelCase`
-— the compiler warns on a capital first letter.
+ the compiler warns on a capital first letter.
 
 ### print
 
@@ -72,7 +72,7 @@ else
 end
 ```
 
-No parentheses, no colons — the condition is just an expression
+No parentheses, no colons, the condition is just an expression
 followed by a newline. Blocks may nest up to 256 levels (the
 compiler rejects deeper nesting with a clean diagnostic, not a stack
 overflow) and may be empty.
@@ -111,7 +111,7 @@ Double-quoted with C-style escapes:
 ```pith
 s = "hello\tworld"
 q = "quote:\"back\\slash"
-n = "a\0b"         # embedded NUL — lossless
+n = "a\0b"         # embedded NUL, lossless
 u = "ünïcødé → ✓"  # UTF-8 payload bytes
 ```
 
@@ -134,7 +134,7 @@ math.logNote(42)     # void calls may be bare statements
 
 ## Memory model
 
-Deterministic ARC — the compiler injects retain/release at scope
+Deterministic ARC, the compiler injects retain/release at scope
 boundaries. See [Runtime & Memory](/runtime).
 
 ## Comments

@@ -45,7 +45,7 @@ See the [Configuration](/config) page for every table and key.
 
 ## Multi-file builds
 
-Pass multiple translation units — they're concatenated into a single
+Pass multiple translation units, they're concatenated into a single
 `.ssa` module (WPSSAC):
 
 ```sh
@@ -80,7 +80,7 @@ pith test all       # executes tasks.test.all
 pith deploy prod    # executes tasks.deploy.prod
 ```
 
-Unknown verbs dispatch through `[tasks]` — the rest are built-in
+Unknown verbs dispatch through `[tasks]`, the rest are built-in
 commands. See [Custom Tasks](/cli/tasks).
 
 ## Dependencies
@@ -91,7 +91,7 @@ Add a dependency:
 pith pkg add os-utils 1.0.0
 ```
 
-This appends to `pith.toml` and runs `sync` — the package is
+This appends to `pith.toml` and runs `sync`, the package is
 installed into `<project>/.pith/pkgs/os-utils@1.0.0/` and recorded in
 `pith.lock` with an FNV-1a integrity hash.
 

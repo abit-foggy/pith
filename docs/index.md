@@ -28,5 +28,5 @@ features:
   - title: Instant Dev Loop
     details: In-memory JIT execution via libtcc. Compile and run in milliseconds.
   - title: Embeddable
-    details: Pure C ABI host interface — register native functions, evaluate pith strings, zero marshaling.
+    details: Pure C ABI host interface, register native functions, evaluate pith strings, zero marshaling.
 ---

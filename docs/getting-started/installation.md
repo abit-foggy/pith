@@ -9,11 +9,11 @@ curl -fsSL https://raw.githubusercontent.com/abit-foggy/pith/main/install.sh | s
 This downloads the latest release and installs into `~/.local`:
 
 ```
-~/.local/bin/pith                        — the toolchain binary
-~/.local/lib/pith/tcc/libtcc1.a          — vendored tcc runtime
-~/.local/lib/pith/runtime/libruntime.a   — ARC runtime library
-~/.local/include/pith.h                 — FFI header
-~/.local/include/api.h                   — runtime ABI bindings
+~/.local/bin/pith                       , the toolchain binary
+~/.local/lib/pith/tcc/libtcc1.a         , vendored tcc runtime
+~/.local/lib/pith/runtime/libruntime.a  , ARC runtime library
+~/.local/include/pith.h                , FFI header
+~/.local/include/api.h                  , runtime ABI bindings
 ```
 
 Add `~/.local/bin` to your `PATH` if it isn't already:
@@ -38,7 +38,7 @@ cd pith
 make
 ```
 
-The vendored tcc is a git submodule — the build compiles it
+The vendored tcc is a git submodule, the build compiles it
 automatically. If you cloned without `--recurse-submodules`:
 
 ```sh
@@ -81,7 +81,7 @@ pith engine
 
 | File | Description |
 |---|---|
-| `pith` | The toolchain binary — libtcc is embedded statically |
+| `pith` | The toolchain binary, libtcc is embedded statically |
 | `libtcc1.a` | tcc runtime, needed by the JIT at relocate time |
 | `libruntime.a` | The ARC runtime, linked into `pith build` output |
 | `include/pith.h` | The FFI header for imported C modules |

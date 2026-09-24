@@ -14,7 +14,7 @@ msg = math.greet("world")     # owned string return, ARC-released
 math.logNote(42)              # void call as a statement
 ```
 
-The namespace is the file's basename sans `.c` — `ffi/math.c` becomes
+The namespace is the file's basename sans `.c`, `ffi/math.c` becomes
 `math`.
 
 ## How it works
@@ -59,7 +59,7 @@ conversions at the boundary.
 | `long`, `int64_t`, `size_t`, `T*` | `l` | integer or string |
 | `float` | `s` | float (narrowed via `truncd`) |
 | `double` | `d` | float |
-| `void` | — | (statement only) |
+| `void` |, | (statement only) |
 | `PithValue*` | `l` | string (owned, +1 reference) |
 
 The prototype scanner (`src/cffi.c`) discovers non-static function
@@ -71,13 +71,13 @@ parameter lists are handled.
 
 Imported C code includes `<pith.h>` and follows these rules:
 
-- **Parameters are borrowed** — the callee must call `pithRetain()`
+- **Parameters are borrowed**, the callee must call `pithRetain()`
   before storing a `PithValue*` beyond the call, and owns that extra
   reference afterwards.
-- **Returns must be +1** — a function returning `PithValue*` must
+- **Returns must be +1**, a function returning `PithValue*` must
   return a new reference; the Pith compiler injects the matching
   release at scope boundaries.
-- **Handoffs are leak-free** — the compiler's ASan-verified test suite
+- **Handoffs are leak-free**, the compiler's ASan-verified test suite
   confirms zero leaks across the FFI boundary.
 
 ## Writing an import module

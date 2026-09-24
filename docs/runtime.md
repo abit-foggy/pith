@@ -1,6 +1,6 @@
 # Runtime & Memory Model
 
-Pith uses **deterministic Automated Reference Counting** (ARC) — zero
+Pith uses **deterministic Automated Reference Counting** (ARC), zero
 tracing garbage collectors, zero safepoint stops, zero hidden
 runtime bloat.
 
@@ -22,11 +22,11 @@ struct PithValue {
 };
 ```
 
-- **32-bit atomic refcounts** — updated with C11 `<stdatomic.h>` when
+- **32-bit atomic refcounts**, updated with C11 `<stdatomic.h>` when
   available, GCC/Clang `__sync` builtins otherwise. Thread-safe.
-- **Type discriminators** — `PITH_TAG_INT`, `PITH_TAG_FLOAT`,
+- **Type discriminators**, `PITH_TAG_INT`, `PITH_TAG_FLOAT`,
   `PITH_TAG_STRING`, `PITH_TAG_BOOL`, `PITH_TAG_OBJECT`.
-- **Flags** — `PITH_FLAG_STATIC` marks immortal static data (string
+- **Flags**, `PITH_FLAG_STATIC` marks immortal static data (string
   literals); `PITH_FLAG_SHARED` marks values involved in a broken
   cycle.
 
@@ -40,7 +40,7 @@ struct PithValue {
 | Borrow-to-own (`y = x` where `x` is ARC) | `call $pith_retain` on the new owner |
 | Foreign return (`PithValue*` from C) | ownership transfers to the variable (+1 from C) |
 
-The compiler emits these deterministically at every scope boundary —
+The compiler emits these deterministically at every scope boundary,
 there is no runtime collector, no safepoint, no pause.
 
 ## Static data
@@ -52,14 +52,14 @@ String literals compile to QBE `data` definitions carrying the
 data $str.1 = { w 1, h 3, h 1, w 6, w 5, b "linux", b 0 }
 ```
 
-- `w 1` — refcount (irrelevant for statics)
-- `h 3` — typeTag = PITH_TAG_STRING
-- `h 1` — flags = PITH_FLAG_STATIC
-- `w 6` — capacity (length + NUL)
-- `w 5` — length
+- `w 1`, refcount (irrelevant for statics)
+- `h 3`, typeTag = PITH_TAG_STRING
+- `h 1`, flags = PITH_FLAG_STATIC
+- `w 6`, capacity (length + NUL)
+- `w 5`, length
 
 `pithRetain` and `pithRelease` are **no-ops** on static-flagged values
-— they are immortal and never freed.
+ they are immortal and never freed.
 
 ## Cycle mitigation
 
@@ -95,5 +95,5 @@ From `include/api.h`:
 
 Reference counts are updated atomically (32-bit). Shared values are
 safe to retain/release from multiple threads. The compiler-injected
-releases remain deterministic — they always happen at scope
+releases remain deterministic, they always happen at scope
 boundaries in the owning thread.

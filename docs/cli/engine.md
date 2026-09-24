@@ -1,6 +1,6 @@
 # pith engine
 
-Transparent toolchain version proxying — multiple pith compiler
+Transparent toolchain version proxying, multiple pith compiler
 versions coexist, switching automatically per project.
 
 ## Commands

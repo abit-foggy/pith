@@ -4,7 +4,7 @@
 pith run <file.pi> [more.pi ...]
 ```
 
-Compile and execute via the instant pipeline — no temp executable,
+Compile and execute via the instant pipeline, no temp executable,
 no heavyweight compiler driver.
 
 ## Pipeline

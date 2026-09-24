@@ -18,7 +18,7 @@ source.pi → lex → parse → QBE IR (WPSSAC) → qbe → assembly
 ```
 
 On Linux, Windows NT, and FreeBSD, the link happens **in-process** via
-the embedded tcc's built-in ELF linker — no external linker or
+the embedded tcc's built-in ELF linker, no external linker or
 subprocess. On Darwin, mold is driven through the compiler driver
 (`clang -fuse-ld=mold`). Fallbacks: a tcc binary, then the system
 linker.
@@ -35,7 +35,7 @@ true` in `pith.toml`.
 
 ## Multi-file (WPSSAC)
 
-Multiple translation units concatenate into one `.ssa` module — the
+Multiple translation units concatenate into one `.ssa` module, the
 same as `pith run`. All imported C units are compiled to object files
 and linked in alongside the QBE-generated object and the runtime
 archive.
@@ -60,5 +60,5 @@ Recover with `pith decompile <binary>`.
 
 ## Default builds are stripped
 
-Without `--embed-source`, the binary contains **no** source metadata —
+Without `--embed-source`, the binary contains **no** source metadata,
 the last 16 bytes are normal ELF data, not the `PITHDEBG` magic.

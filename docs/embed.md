@@ -1,6 +1,6 @@
 # Embeddable C ABI
 
-Host C/C++ applications embed pith via `include/pith_embed.h` — a
+Host C/C++ applications embed pith via `include/pith_embed.h`, a
 pure C ABI with direct function pointer registration (no virtual stack
 marshaling).
 
@@ -31,8 +31,8 @@ pith_context_free(ctx);
 | `pith_register_fn(ctx, name, fn_ptr)` | Register a C function under `name` |
 | `pith_eval_string(ctx, source)` | Compile and execute a pith source string |
 
-`pith_eval_string` runs the full pipeline — lex, parse (bump arena),
-QBE lowering, `qbe`, in-memory libtcc execution — with the context's
+`pith_eval_string` runs the full pipeline, lex, parse (bump arena),
+QBE lowering, `qbe`, in-memory libtcc execution, with the context's
 registered functions available alongside the runtime ABI. Returns the
 program exit code, or `1` on a compile/engine failure.
 
@@ -81,6 +81,6 @@ cc host_app.c -Iinclude -Ivendor/tcc \
    vendor/tcc/libtcc.a -ldl -o host_app
 ```
 
-The `PithContext` is opaque — it internally holds a dynamic array of
+The `PithContext` is opaque, it internally holds a dynamic array of
 `{ name, function_pointer }` pairs that the engine registers into
 every libtcc execution alongside the runtime symbols.
