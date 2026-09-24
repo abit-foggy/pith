@@ -223,8 +223,5 @@ error: cannot assign twice to immutable variable `x` (declare with `mut` to reas
 
 ## Builtins
 
-| Builtin | Returns | Description |
-|---|---|---|
-| `os.identifyKernel` | string | `"linux"`, `"darwin"`, `"nt"`, `"freebsd"` |
-| `os.identifyKernelVersion` | string | Kernel/OS version (uname.release) |
-| `os.isNT` | bool | `1` on Windows NT, `0` elsewhere |
+See the [Namespaces](/namespaces) page for the builtin `os` namespace
+and FFI import namespaces.

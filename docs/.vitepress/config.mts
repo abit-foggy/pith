@@ -32,6 +32,7 @@ export default defineConfig({
         text: 'Language Reference',
         items: [
           { text: 'Syntax & Semantics', link: '/language' },
+          { text: 'Namespaces', link: '/namespaces' },
           { text: 'Runtime & Memory Model', link: '/runtime' },
         ],
       },

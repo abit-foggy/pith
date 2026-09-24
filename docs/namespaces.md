@@ -1,0 +1,98 @@
+# Namespaces
+
+Namespaces are fixed roots that expose related functions through
+dotted member access: `os.identifyKernel`, `math.addInts`. A
+namespace member used alone is a value; with `(args)` it is a call.
+
+Pith has two kinds of namespaces:
+
+1. **The builtin `os` namespace**, compiled into the runtime
+2. **FFI namespaces**, created by `import "module.c"` statements
+
+## The builtin `os` namespace
+
+The `os` namespace exposes platform identification. It is always
+available, no import needed:
+
+```pith
+if os.isLinux
+    print "running on linux"
+end
+
+kernel = os.identifyKernel
+version = os.identifyKernelVersion
+```
+
+### Members
+
+| Member | Type | Returns |
+|---|---|---|
+| `os.identifyKernel` | string | `"linux"`, `"darwin"`, `"nt"`, `"freebsd"`, `"unknown"` |
+| `os.identifyKernelVersion` | string | Kernel/OS version string (uname.release on POSIX) |
+| `os.isNT` | bool | `1` on Windows NT, `0` elsewhere |
+| `os.isLinux` | bool | `1` on Linux, `0` elsewhere |
+| `os.isFreeBSD` | bool | `1` on FreeBSD, `0` elsewhere |
+| `os.isDarwin` | bool | `1` when the kernel is Darwin (macOS and other Darwin systems) |
+| `os.isMacOS` | bool | `1` only on Apple macOS |
+
+### isDarwin vs isMacOS
+
+These are slightly different:
+
+- **`os.isDarwin`** is a *kernel-level* check: TRUE whenever the
+  kernel reports "Darwin" (via uname). This includes Apple macOS AND
+  non-Apple Darwin systems.
+- **`os.isMacOS`** is an *Apple-specific* check: TRUE only on Apple's
+  macOS (detected via the Apple toolchain's `__APPLE__` + `__MACH__`
+  defines).
+
+```pith
+if os.isDarwin
+    print "darwin kernel"
+end
+if os.isMacOS
+    print "apple macos"
+end
+```
+
+### String members are ARC values
+
+`os.identifyKernel` and `os.identifyKernelVersion` return freshly
+allocated strings: assigning one to a variable makes the variable an
+ARC owner, and the value is released at scope exit. Using one
+directly (e.g. in a comparison or `print`) releases the temporary
+right after its single use.
+
+### Boolean members
+
+The `is*` members return 32-bit booleans. Comparing them with integer
+literals works (`os.isNT == 0`), as do direct truthiness checks
+(`if os.isNT`).
+
+## FFI namespaces
+
+An `import "path.c"` statement creates a namespace from the file's
+basename (sans `.c`). Every non-static function the C file exports
+becomes a member:
+
+```pith
+import "ffi/math.c"
+
+sum = math.addInts(3, 4)      # call with args
+math.logNote(42)              # void call as a bare statement
+```
+
+- Calls are **typed**: the compiler scans the C file's prototypes and
+  emits type conversions at every boundary
+- String parameters are **borrows**; `PithValue*` returns are **owned
+  values** (+1 reference, released at scope exit)
+- Two imports may not export the same symbol (the linker would
+  collide); the JIT's per-import state isolation prevents most cases
+
+See [C Imports (FFI)](/ffi) for the full pipeline and ABI contract.
+
+## Shadowing
+
+Declaring a variable named `os` shadows the builtin namespace (the
+compiler warns). FFI namespaces cannot be shadowed by variables in
+call position, the compiler resolves imports first.
