@@ -96,7 +96,7 @@ int pith_eval_string(PithContext *ctx, const char *source)
 
     size_t gen_errors = 0;
     char *ssa = pith_gen_qbe(&program, 1, (const char **)&name, &source,
-                             NULL, 0, &gen_errors);
+                             NULL, 0, NULL, &gen_errors);
     pith_arena_free(&arena);
     if (gen_errors > 0 || !ssa) {
         fprintf(stderr, "error: aborting due to %zu previous error%s\n",
