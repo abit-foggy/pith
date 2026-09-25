@@ -28,6 +28,10 @@
 
 #include "../include/compiler.h"
 
+#if defined(PITH_HAVE_LIBTCC) && !defined(__APPLE__)
+#include <libtcc.h>
+#endif
+
 /* ------------------------------------------------------------------ */
 /* File & path helpers                                                */
 /* ------------------------------------------------------------------ */
@@ -100,6 +104,34 @@ static void le64_put(unsigned char *p, uint64_t v)
         p[i] = (unsigned char)((v >> (8 * i)) & 0xFFu);
 }
 
+static int run_cmd_local(const char *cmd)
+{
+    int st = system(cmd);
+    if (st == -1)
+        return -1;
+    if (WIFEXITED(st))
+        return WEXITSTATUS(st);
+    if (WIFSIGNALED(st))
+        return 128 + WTERMSIG(st);
+    return -1;
+}
+
+/* Append an empty PithImportUnit to the imports array. */
+static PithImportUnit *imports_new(PithImportUnit **imports,
+                                   size_t *nimports)
+{
+    PithImportUnit *ni = realloc(*imports,
+                                 (*nimports + 1) *
+                                 sizeof(PithImportUnit));
+    if (!ni)
+        return NULL;
+    *imports = ni;
+    PithImportUnit *u = &(*imports)[*nimports];
+    memset(u, 0, sizeof(*u));
+    (*nimports)++;
+    return u;
+}
+
 static uint64_t le64_get(const unsigned char *p)
 {
     uint64_t v = 0;
@@ -122,7 +154,9 @@ static uint64_t le64_get(const unsigned char *p)
  */
 static char *compile_frontend(const char **paths, size_t count,
                               PithImportUnit **imports_out,
-                              size_t *nimports_out)
+                              size_t *nimports_out,
+                              char (*fns_out)[128], size_t *nfns_out,
+                              const PithPluginInfo *plugin)
 {
     Arena arena;
     memset(&arena, 0, sizeof(arena));
@@ -188,19 +222,47 @@ static char *compile_frontend(const char **paths, size_t count,
         return NULL;
     }
 
-    /* discover native C imports across every unit */
-    PithImportUnit *imports = NULL;
-    size_t nimports = 0;
+    /* discover native C imports across every unit. Seed from the
+       caller's pre-built imports (e.g. dependency-provided plugins)
+       so both sources reach the code generator. */
+    PithImportUnit *imports = imports_out ? *imports_out : NULL;
+    size_t nimports = nimports_out ? *nimports_out : 0;
+
+    if (fns_out && nfns_out)
+        *nfns_out = 0;
 
     {
         size_t nstmt_imports = 0;
         for (size_t u = 0; u < count; u++)
-            for (size_t i = 0; i < programs[u]->count; i++)
-                if (programs[u]->stmts[i]->type == AST_IMPORT_STMT)
+            for (size_t i = 0; i < programs[u]->count; i++) {
+                ASTNode *st = programs[u]->stmts[i];
+                if (st->type == AST_IMPORT_STMT)
                     nstmt_imports++;
+                if (st->type == AST_FN_DECL && fns_out &&
+                    *nfns_out < 64) {
+                    snprintf(fns_out[(*nfns_out)++],
+                             sizeof(fns_out[0]), "%s",
+                             st->as.fn_decl.name);
+                }
+            }
 
         if (nstmt_imports > 0) {
-            imports = malloc(nstmt_imports * sizeof(PithImportUnit));
+            if (!imports) {
+                imports = malloc((nstmt_imports + nimports) *
+                                 sizeof(PithImportUnit));
+            } else {
+                /* grow the caller's pre-seeded array */
+                PithImportUnit *ni = realloc(
+                    imports,
+                    (nimports + nstmt_imports) * sizeof(PithImportUnit));
+                if (!ni) {
+                    fprintf(stderr, "error: out of memory\n");
+                    total_errors++;
+                    nstmt_imports = 0;
+                } else {
+                    imports = ni;
+                }
+            }
             if (!imports) {
                 fprintf(stderr, "error: out of memory\n");
                 for (size_t i = 0; i < count; i++)
@@ -328,7 +390,7 @@ static char *compile_frontend(const char **paths, size_t count,
 
     size_t gen_errors = 0;
     char *ssa = pith_gen_qbe(programs, count, unit_paths, unit_sources,
-                             imports, nimports, &gen_errors);
+                             imports, nimports, plugin, &gen_errors);
 
     for (size_t i = 0; i < count; i++)
         free((char *)unit_sources[i]);
@@ -443,7 +505,7 @@ static int cmd_run(const char **paths, size_t count)
 {
     PithImportUnit *imports = NULL;
     size_t nimports = 0;
-    char *ssa = compile_frontend(paths, count, &imports, &nimports);
+    char *ssa = compile_frontend(paths, count, &imports, &nimports, NULL, NULL, NULL);
     if (!ssa)
         return 1;
 
@@ -482,7 +544,8 @@ static int cmd_run(const char **paths, size_t count)
 }
 
 static int cmd_build(const char **paths, size_t count,
-                     const char *out_override, int embed_flag)
+                     const char *out_override, int embed_flag,
+                     int plugin_flag_param)
 {
     /* security default: stripped by default; embedding is triggered
        only by --embed-source or build.embedSource in pith.toml */
@@ -496,9 +559,215 @@ static int cmd_build(const char **paths, size_t count,
         }
     }
 
+    /* plugin mode: [toolchain].pithPlugin = yes (or the --plugin
+       flag) turns the build into an installable .ppkg artifact */
+    int plugin_flag = plugin_flag_param;
+
+    char author[128] = "";
+    char module_name[128] = "plugin";
+
+    PithConfig cfg;
+    int have_cfg = (pith_config_load("pith.toml", &cfg) == 0);
+    if (have_cfg) {
+        const char *v = pith_config_get(&cfg, "project.author");
+        if (v && *v)
+            snprintf(author, sizeof(author), "%s", v);
+        v = pith_config_get(&cfg, "project.name");
+        if (v && *v)
+            snprintf(module_name, sizeof(module_name), "%s", v);
+        if (!plugin_flag) {
+            v = pith_config_get(&cfg, "toolchain.pithPlugin");
+            if (v && (strcmp(v, "yes") == 0 || strcmp(v, "true") == 0))
+                plugin_flag = 1;
+        }
+        if (!embed) {
+            v = pith_config_get(&cfg, "build.embedSource");
+            if (v && strcmp(v, "true") == 0)
+                embed = 1;
+        }
+    }
+
+    /* dependencies: installed plugins become import units */
     PithImportUnit *imports = NULL;
     size_t nimports = 0;
-    char *ssa = compile_frontend(paths, count, &imports, &nimports);
+    char plugin_objs[16][4096];
+    size_t nplugin_objs = 0;
+
+    if (have_cfg && !plugin_flag) {
+        /* collect dependency-provided plugins from the local scope */
+        static const char prefix[] = "dependencies.";
+        for (size_t i = 0; i < cfg.count && nimports < 16; i++) {
+            if (strncmp(cfg.entries[i].key, prefix, sizeof(prefix) - 1)
+                != 0)
+                continue;
+            const char *depname = cfg.entries[i].key +
+                                  sizeof(prefix) - 1;
+            const char *depval = cfg.entries[i].value;
+
+            /* resolve the dependency source */
+            char src[4096];
+            if (depval[0] == '.' || depval[0] == '/') {
+                snprintf(src, sizeof(src), "%s", depval);
+            } else {
+                /* look in the local pkg scope */
+                char pkgdir[4096];
+                char vc[128];
+                snprintf(vc, sizeof(vc), "%s", depval);
+                for (char *c = vc; *c; c++)
+                    if (*c == '/' || *c == '\\')
+                        *c = '_';
+                snprintf(pkgdir, sizeof(pkgdir), ".pith/pkgs/%s@%s",
+                         depname, vc);
+                snprintf(src, sizeof(src), "%s", pkgdir);
+            }
+
+            /* a plugin source: a .ppkg bundle or an installed plugin
+               dir containing a manifest */
+            char manifest_path[4096];
+            char pobj_src[4096];
+            const char *base = strrchr(src, '/');
+            base = base ? base + 1 : src;
+            if (ends_with(base, ".ppkg")) {
+                /* unpack the tar bundle into a temp dir */
+                char tmpdir[4096];
+                if (pith_make_temp("", tmpdir, sizeof(tmpdir)) != 0)
+                    continue;
+                unlink(tmpdir);
+                if (mkdir(tmpdir, 0755) != 0)
+                    continue;
+                FILE *bf = fopen(src, "rb");
+                if (!bf) {
+                    rmdir(tmpdir);
+                    continue;
+                }
+                fseek(bf, 0, SEEK_END);
+                long bsz = ftell(bf);
+                fseek(bf, 0, SEEK_SET);
+                if (bsz < 0) {
+                    fclose(bf);
+                    rmdir(tmpdir);
+                    continue;
+                }
+                char *bmem = malloc((size_t)bsz);
+                if (!bmem ||
+                    fread(bmem, 1, (size_t)bsz, bf) != (size_t)bsz ||
+                    pith_tar_extract_mem(bmem, (size_t)bsz, tmpdir)
+                        != 0) {
+                    free(bmem);
+                    fclose(bf);
+                    rmdir(tmpdir);
+                    continue;
+                }
+                free(bmem);
+                fclose(bf);
+                snprintf(manifest_path, sizeof(manifest_path),
+                         "%s/manifest", tmpdir);
+                snprintf(pobj_src, sizeof(pobj_src), "%s/plugin.o",
+                         tmpdir);
+            } else {
+                snprintf(manifest_path, sizeof(manifest_path),
+                         "%s/manifest", src);
+                snprintf(pobj_src, sizeof(pobj_src), "%s/plugin.o",
+                         src);
+            }
+
+            /* read the manifest */
+            FILE *mf = fopen(manifest_path, "r");
+            if (!mf)
+                continue;   /* not a plugin dependency: skip */
+
+            char line[512];
+            char pauthor[128] = "", pmodule[128] = "";
+            while (fgets(line, sizeof(line), mf)) {
+                char *s = line;
+                while (*s == ' ' || *s == '\t')
+                    s++;
+                if (*s == '#' || *s == '\n')
+                    continue;
+                if (strncmp(s, "author = ", 9) == 0) {
+                    char *v = s + 9;
+                    while (*v == ' ' || *v == '"')
+                        v++;
+                    size_t vl = strlen(v);
+                    while (vl && (v[vl-1] == '\n' || v[vl-1] == '"' ||
+                                  v[vl-1] == ' '))
+                        v[--vl] = '\0';
+                    snprintf(pauthor, sizeof(pauthor), "%s", v);
+                } else if (strncmp(s, "module = ", 9) == 0) {
+                    char *v = s + 9;
+                    while (*v == ' ' || *v == '"')
+                        v++;
+                    size_t vl = strlen(v);
+                    while (vl && (v[vl-1] == '\n' || v[vl-1] == '"' ||
+                                  v[vl-1] == ' '))
+                        v[--vl] = '\0';
+                    snprintf(pmodule, sizeof(pmodule), "%s", v);
+                }
+            }
+            fclose(mf);
+
+            if (!pmodule[0])
+                continue;
+
+            /* build an import unit from the manifest's fn lines */
+            PithImportUnit *u = imports_new(&imports, &nimports);
+            if (!u)
+                break;
+            u->is_plugin = 1;
+            snprintf(u->author, sizeof(u->author), "%s", pauthor);
+            snprintf(u->ns, sizeof(u->ns), "%s", pmodule);
+            snprintf(u->path, sizeof(u->path), "%s", manifest_path);
+
+            mf = fopen(manifest_path, "r");
+            if (mf) {
+                while (fgets(line, sizeof(line), mf)) {
+                    char *s = line;
+                    while (*s == ' ' || *s == '\t')
+                        s++;
+                    if (strncmp(s, "fn ", 3) != 0)
+                        continue;
+                    char fname[128];
+                    char retl[8] = "l";
+                    int nparams = 0;
+                    if (sscanf(s + 3, "%127s %7s %d", fname, retl,
+                               &nparams) < 1)
+                        continue;
+                    if (u->nfn >= PITH_FFI_MAX_FNS)
+                        break;
+                    PithForeignFn *fn = &u->fns[u->nfn++];
+                    snprintf(fn->name, sizeof(fn->name), "%s", fname);
+                    fn->ret = (*retl == 's') ? PITH_FFI_SINGLE
+                            : (*retl == 'd') ? PITH_FFI_DOUBLE
+                            : (*retl == 'w') ? PITH_FFI_WORD
+                            :                  PITH_FFI_LONG;
+                    fn->nparams = (size_t)nparams;
+                    fn->ret_pith_value = false;
+                }
+                fclose(mf);
+            }
+
+            /* the plugin's object: from the unpacked bundle or the
+               installed dir */
+            char pobj[4096];
+            snprintf(pobj, sizeof(pobj), "%s", pobj_src);
+            if (nplugin_objs < 16) {
+                snprintf(plugin_objs[nplugin_objs],
+                         sizeof(plugin_objs[0]), "%s", pobj);
+                nplugin_objs++;
+            }
+        }
+    }
+
+    char fns[64][128];
+    size_t nfns = 0;
+    PithPluginInfo plugin;
+    memset(&plugin, 0, sizeof(plugin));
+    plugin.enabled = plugin_flag != 0;
+    plugin.author = author;
+    plugin.module = module_name;
+
+    char *ssa = compile_frontend(paths, count, &imports, &nimports,
+                                 fns, &nfns, &plugin);
     if (!ssa)
         return 1;
 
@@ -540,6 +809,98 @@ static int cmd_build(const char **paths, size_t count,
         snprintf(out_path, sizeof(out_path), "%.*s", (int)blen, base);
     }
 
+    /* plugin mode: assemble to an object and bundle it as .ppkg
+       (plugin.o + manifest); no executable link.
+       non-Darwin: the embedded tcc's built-in assembler (in-process)
+       Darwin: clang's assembler */
+    if (plugin_flag) {
+        char pobj[4096];
+        snprintf(pobj, sizeof(pobj), "%s", obj_path);
+
+        int asm_ok = 0;
+#if !defined(__APPLE__) && defined(PITH_HAVE_LIBTCC)
+        {
+            TCCState *cs = tcc_new();
+            if (cs) {
+                const char *tdir0 = pith_tcc_dir();
+                if (tdir0)
+                    tcc_set_lib_path(cs, tdir0);
+                tcc_set_output_type(cs, TCC_OUTPUT_OBJ);
+                asm_ok = tcc_add_file(cs, asm_path) == 0 &&
+                         tcc_output_file(cs, pobj) == 0;
+                tcc_delete(cs);
+            }
+        }
+#else
+        {
+            char cmd[16384];
+            snprintf(cmd, sizeof(cmd),
+                     "clang -c \"%s\" -o \"%s\"", asm_path, pobj);
+            asm_ok = (run_cmd_local(cmd) == 0);
+        }
+#endif
+        if (!asm_ok) {
+            fprintf(stderr, "pith build: failed to assemble the "
+                            "plugin\n");
+            free(asm_src);
+            free(imports);
+            cleanup_temp(ssa_path);
+            cleanup_temp(asm_path);
+            return 1;
+        }
+
+        /* write the manifest */
+        char mf_path[4096];
+        snprintf(mf_path, sizeof(mf_path), "%s_manifest", obj_path);
+        FILE *mf = fopen(mf_path, "w");
+        if (!mf) {
+            fprintf(stderr, "pith build: cannot write the plugin "
+                            "manifest\n");
+            free(asm_src);
+            free(imports);
+            cleanup_temp(ssa_path);
+            cleanup_temp(asm_path);
+            cleanup_temp(pobj);
+            return 1;
+        }
+        fprintf(mf, "# pith plugin manifest\n");
+        fprintf(mf, "author = \"%s\"\n", author);
+        fprintf(mf, "module = \"%s\"\n", module_name);
+        for (size_t i = 0; i < nfns; i++)
+            fprintf(mf, "fn %s l 0\n", fns[i]);
+        fclose(mf);
+
+        /* bundle: plugin.o + manifest -> <out>.ppkg */
+        char ppkg[4096];
+        snprintf(ppkg, sizeof(ppkg), "%s.ppkg", out_path);
+        FILE *bundle = fopen(ppkg, "wb");
+        if (!bundle) {
+            fprintf(stderr, "pith build: cannot write %s\n", ppkg);
+            free(asm_src);
+            free(imports);
+            cleanup_temp(ssa_path);
+            cleanup_temp(asm_path);
+            cleanup_temp(pobj);
+            cleanup_temp(mf_path);
+            return 1;
+        }
+        pith_tar_append_file_as(bundle, pobj, "plugin.o");
+        pith_tar_append_file_as(bundle, mf_path, "manifest");
+        pith_tar_finish(bundle);
+        fclose(bundle);
+
+        free(asm_src);
+        free(imports);
+        cleanup_temp(ssa_path);
+        cleanup_temp(asm_path);
+        cleanup_temp(pobj);
+        cleanup_temp(mf_path);
+
+        printf("built plugin %s (%zu exported fn%s)\n", ppkg, nfns,
+               nfns == 1 ? "" : "s");
+        return 0;
+    }
+
     char rtlib[4096];
     if (!engine_find_runtime_lib(rtlib, sizeof(rtlib))) {
         fprintf(stderr, "error: runtime/libruntime.a not found "
@@ -551,8 +912,16 @@ static int cmd_build(const char **paths, size_t count,
         return 1;
     }
 
+    /* proper pointer array for the prebuilt objects (a 2D char array
+       must not be reinterpreted as a pointer array) */
+    const char *prebuilt[16];
+    for (size_t i = 0; i < nplugin_objs; i++)
+        prebuilt[i] = plugin_objs[i];
+
     int rc = engine_build_aot(asm_path, obj_path, out_path, rtlib,
-                              imports, nimports);
+                              imports, nimports,
+                              (const char *const *)prebuilt,
+                              nplugin_objs);
 
     free(asm_src);
     free(imports);
@@ -573,7 +942,7 @@ static int cmd_build(const char **paths, size_t count,
 
 static int cmd_decompile_ir(const char **paths, size_t count)
 {
-    char *ssa = compile_frontend(paths, count, NULL, NULL);
+    char *ssa = compile_frontend(paths, count, NULL, NULL, NULL, NULL, NULL);
     if (!ssa)
         return 1;
 
@@ -825,7 +1194,6 @@ static void print_help(void)
            "    --global-root   install machine-wide (requires sudo)\n\n"
            "ENVIRONMENT:\n"
            "    PITH_QBE       qbe binary (default: qbe)\n"
-           "    PITH_AS       assembler (default: as)\n"
            "    PITH_CC       compiler driver / system linker "
            "(default: cc)\n"
            "    PITH_MOLD     mold linker override\n"
@@ -989,6 +1357,7 @@ static int pith_main(int argc, char **argv)
         }
         const char *out_override = NULL;
         int embed_flag = 0;
+        int plugin_flag = 0;
         const char *paths[64];
         size_t count = 0;
         for (int i = 2; i < argc && count < 64; i++) {
@@ -1000,13 +1369,18 @@ static int pith_main(int argc, char **argv)
                 embed_flag = 1;
                 continue;
             }
+            if (strcmp(argv[i], "--plugin") == 0) {
+                plugin_flag = 1;
+                continue;
+            }
             paths[count++] = argv[i];
         }
         if (count == 0) {
             fprintf(stderr, "error: `pith build` expects a script file\n");
             return 2;
         }
-        return cmd_build(paths, count, out_override, embed_flag);
+        return cmd_build(paths, count, out_override, embed_flag,
+                         plugin_flag);
     }
     if (strcmp(cmd, "decompile") == 0) {
         if (argc < 3) {

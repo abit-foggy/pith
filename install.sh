@@ -67,6 +67,37 @@ esac
 say "detected $OS ($ARCH) -> pith-$TRIPLET"
 
 # ------------------------------------------------------------------ #
+# toolchain prerequisites                                            #
+# ------------------------------------------------------------------ #
+
+# macOS (not generic Darwin): the Apple toolchain assembles and links;
+# the Xcode command line utilities provide clang and the SDK. Offer to
+# install them when missing (the installer prompts for the password).
+if [ "$OS" = "Darwin" ]; then
+    if ! xcode-select -p >/dev/null 2>&1; then
+        say "the Xcode command line utilities are not installed"
+        printf 'install.sh: install them now? [y/N] '
+        read -r answer
+        case "$answer" in
+            [yY]*)
+                say "running xcode-select --install (enter your password if prompted)"
+                xcode-select --install || \
+                    die "xcode-select --install failed; install the command line utilities manually"
+                say "waiting for the installation to finish..."
+                until xcode-select -p >/dev/null 2>&1; do
+                    sleep 5
+                done
+                ;;
+            *)
+                die "the Xcode command line utilities are required; install them with: xcode-select --install"
+                ;;
+        esac
+    fi
+    command -v clang >/dev/null 2>&1 || \
+        die "clang is not installed; please install clang (xcode-select --install)"
+fi
+
+# ------------------------------------------------------------------ #
 # latest release resolution                                          #
 # ------------------------------------------------------------------ #
 

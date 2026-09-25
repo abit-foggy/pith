@@ -36,6 +36,13 @@ static void put_block(FILE *out, const char *block)
 
 int pith_tar_append_file(FILE *out, const char *path)
 {
+    return pith_tar_append_file_as(out, path, path);
+}
+
+/* Append one file entry stored under an explicit archive name. */
+int pith_tar_append_file_as(FILE *out, const char *path,
+                            const char *entry_name)
+{
     FILE *in = fopen(path, "rb");
     if (!in)
         return -1;
@@ -52,7 +59,7 @@ int pith_tar_append_file(FILE *out, const char *path)
     /* ustar header */
     char hdr[TAR_BLOCK];
     memset(hdr, 0, sizeof(hdr));
-    snprintf(hdr, 100, "%s", path);                 /* name          */
+    snprintf(hdr, 100, "%s", entry_name);           /* name          */
 
     /* record the file's actual permission bits */
     unsigned mode = 0644;
