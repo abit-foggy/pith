@@ -257,9 +257,11 @@ static void scope_bin_dir(PkgScope scope, char *out, size_t n)
 static int resolve_source(const char *name, const char *version,
                           char *out, size_t n)
 {
-    /* 0. the pith.toml value may be a local path (dir or .tar) */
+    /* 0. the pith.toml value may be a local path (dir, .tar, or a
+       compiled .ppkg plugin bundle) */
     if (strchr(version, '/') || strchr(version, '\\')) {
         if (is_dir(version) || ends_with(version, ".tar") ||
+            ends_with(version, ".ppkg") ||
             access(version, F_OK) == 0) {
             snprintf(out, n, "%s", version);
             return 1;
@@ -270,6 +272,11 @@ static int resolve_source(const char *name, const char *version,
     if (reg && *reg) {
         char cand[4096];
         snprintf(cand, sizeof(cand), "%s/%s-%s.tar", reg, name, version);
+        if (access(cand, F_OK) == 0) {
+            snprintf(out, n, "%s", cand);
+            return 1;
+        }
+        snprintf(cand, sizeof(cand), "%s/%s-%s.ppkg", reg, name, version);
         if (access(cand, F_OK) == 0) {
             snprintf(out, n, "%s", cand);
             return 1;
@@ -322,7 +329,8 @@ static int install_one(const char *root, const char *name,
     if (is_dir(source))
         return copy_dir_rec(source, dest);
 
-    if (ends_with(source, ".tar")) {
+    if (ends_with(source, ".tar") || ends_with(source, ".ppkg")) {
+        /* .ppkg is a tar bundle too (plugin.o + manifest) */
         FILE *fp = fopen(source, "rb");
         if (!fp)
             return -1;

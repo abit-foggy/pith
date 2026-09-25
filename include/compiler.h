@@ -418,7 +418,10 @@ typedef struct {
 typedef struct {
     char ns[64];                   /* module name (basename sans .c)   */
     char author[64];               /* author scope ("" for root level) */
-    char path[4096];               /* resolved .c file path            */
+    char path[4096];               /* resolved .c file path; for plugin
+                                       units, the plugin's object file  */
+    bool is_plugin;                /* a compiled pith plugin (the path
+                                       is a pre-built .o, not C source)*/
     PithForeignFn fns[PITH_FFI_MAX_FNS];
     size_t nfn;
 } PithImportUnit;
@@ -466,13 +469,24 @@ int pith_os_member_exists(const char *name);
  * typed System V AMD64 / AAPCS64 signature.
  *
  * `unit_paths`/`unit_sources` back each program block for per-unit
- * diagnostics. Returns a NUL-terminated QBE .ssa buffer (owned by the
- * caller). Returns NULL on failure (diagnostics already emitted).
+ * diagnostics. `plugin` (may be NULL) enables plugin mode: the
+ * project's fn declarations are exported under author-namespaced
+ * mangled symbols (`c_<author>_<module>_<name>`) and no $main is
+ * emitted — the artifact is a linkable plugin, not an executable.
+ *
+ * Returns a NUL-terminated QBE .ssa buffer (owned by the caller).
+ * Returns NULL on failure (diagnostics already emitted).
  */
+typedef struct {
+    bool        enabled;
+    const char *author;    /* [project].author */
+    const char *module;    /* [project].name   */
+} PithPluginInfo;
+
 char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
                    const char **unit_paths, const char **unit_sources,
                    const PithImportUnit *imports, size_t nimports,
-                   size_t *errors);
+                   const PithPluginInfo *plugin, size_t *errors);
 
 /* ------------------------------------------------------------------ */
 /* Config reader (src/config.c) — flat dotted-key TOML subset         */
@@ -504,6 +518,10 @@ const char *pith_config_get(const PithConfig *cfg, const char *dotted_key);
 
 /* Append one file entry for `path` to an output stream (append mode). */
 int pith_tar_append_file(FILE *out, const char *path);
+
+/* Append one file entry stored under an explicit archive name. */
+int pith_tar_append_file_as(FILE *out, const char *path,
+                            const char *entry_name);
 
 /* Terminate an archive (two zero blocks). */
 void pith_tar_finish(FILE *out);
@@ -552,11 +570,14 @@ int engine_dispatch_run(const char *asm_src, const char *asm_path,
  * `runtime_lib` and every imported unit's compiled object — in-process
  * via the embedded tcc (its built-in ELF linker) on Linux / Windows
  * NT / FreeBSD, via mold through the compiler driver on Darwin,
- * falling back to a tcc binary or the system linker.
+ * falling back to a tcc binary or the system linker. `prebuilt_objs`
+ * (may be NULL) are already-compiled objects (e.g. installed pith
+ * plugins) joined into the link.
  */
 int engine_build_aot(const char *asm_path, const char *obj_path,
                      const char *output_path, const char *runtime_lib,
-                     const PithImportUnit *imports, size_t nimports);
+                     const PithImportUnit *imports, size_t nimports,
+                     const char *const *prebuilt_objs, size_t nprebuilt);
 
 /* Human-readable name of the active execution backend. */
 const char *engine_backend_name(void);
@@ -576,6 +597,9 @@ const char *engine_find_runtime_lib(char *out, size_t n);
 
 /* Create a unique temp file under $TMPDIR (or /tmp); 0 on success. */
 int pith_make_temp(const char *suffix, char *out, size_t n);
+
+/* Directory containing libtcc1.a (auto-discovered); NULL if absent. */
+const char *pith_tcc_dir(void);
 
 /* Find the nearest pith.toml (cwd upwards); returns the path or NULL. */
 int pith_find_config_upwards(char *out, size_t n);

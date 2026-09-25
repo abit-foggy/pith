@@ -119,6 +119,7 @@ typedef struct {
     unsigned    slot;      /* %vN slot counter                         */
     unsigned    lbl;       /* @LN label counter                        */
     unsigned    str;       /* $str.N counter                           */
+    unsigned    fconst;    /* $fconst.N float-constant data counter    */
     bool        block_dead;/* last emitted statement was a return      */
     /* per-unit diagnostics lookup (WPSSAC) */
     const char **unit_paths;
@@ -132,6 +133,10 @@ typedef struct {
     /* native C import units (FFI shims + call resolution) */
     const PithImportUnit *imports;
     size_t      nimports;
+    /* plugin mode: export fn declarations under the author scope */
+    bool        plugin_mode;
+    const char *plugin_author;
+    const char *plugin_module;
 } Codegen;
 
 static const char *unit_source_for(Codegen *g, const char *filepath)
@@ -1186,9 +1191,22 @@ static ExprResult gen_expr(Codegen *g, ASTNode *n)
     }
     case AST_FLOAT_EXPR: {
         ExprResult v;
-        char num[64];
-        snprintf(num, sizeof(num), "%.17g", n->as.float_literal);
-        snprintf(v.ref, sizeof(v.ref), "d_%s", num);
+        /* emit the double's bit pattern as static data and load it.
+           QBE lowers float constants to ".Lfp.N" labels, which it
+           QUOTES in the emitted assembly (the name starts with a
+           dot); tcc's built-in assembler cannot parse quoted labels,
+           so float constants never appear in the IL. */
+        uint64_t bits;
+        memcpy(&bits, &n->as.float_literal, 8);
+        char dref[64];
+        unsigned id = ++g->fconst;
+        sb_fmt(&g->data, "data $fconst.%u = { l %llu }\n", id,
+               (unsigned long long)bits);
+        snprintf(dref, sizeof(dref), "$fconst.%u", id);
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =d loadd %s\n", t, dref);
+        snprintf(v.ref, sizeof(v.ref), "%s", t);
         v.type = PITH_VALUE_FLOAT;
         v.owned = false;
         v.borrowed_arc = false;
@@ -1456,6 +1474,11 @@ static void gen_return(Codegen *g, ASTNode *n)
 
     switch (v.type) {
     case PITH_VALUE_INT: {
+        if (g->plugin_mode) {
+            /* plugin functions return l (64-bit): no truncation */
+            EMIT("\tret %s\n", v.ref);
+            break;
+        }
         /* main/fns return w; truncate the 64-bit int through a
            scratch slot (storel then loadw) */
         char t1[64], t2[64];
@@ -1510,6 +1533,27 @@ static void gen_fn_decl(Codegen *g, ASTNode *n)
         g->fn_syms[g->fn_sym_count++] = strdup(clean);
     else {
         cg_error(g, n->loc, 1, "too many function declarations", "");
+        return;
+    }
+
+    if (g->plugin_mode) {
+        /* plugin mode: the fn is EXPORTED under the author scope's
+           mangled name, installable and callable from consumers */
+        char mangled[192];
+        pith_cffi_mangled_name(g->plugin_author, g->plugin_module,
+                               clean, mangled, sizeof(mangled));
+
+        StrBuf *prev = g->cur;
+        g->cur = &g->funcs;
+        EMIT("export function l $%s() {\n", mangled);
+        EMIT("@%s.start\n", mangled);
+        bool dead = gen_block(g, n->as.fn_decl.body);
+        EMIT("@%s.exit\n", mangled);
+        EMIT("\tret 0\n}\n\n");
+        if (dead)
+            note(g, n->loc, 2,
+                 "unreachable exit path: function body always returns");
+        g->cur = prev;
         return;
     }
 
@@ -1619,7 +1663,7 @@ static bool gen_block(Codegen *g, ASTBlock *block)
 char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
                    const char **unit_paths, const char **unit_sources,
                    const PithImportUnit *imports, size_t nimports,
-                   size_t *errors)
+                   const PithPluginInfo *plugin, size_t *errors)
 {
     Codegen gctx;
     Codegen *g = &gctx;
@@ -1633,8 +1677,63 @@ char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
     g->unit_count = unit_count;
     g->imports = imports;
     g->nimports = nimports;
+    g->plugin_mode = plugin && plugin->enabled;
+    g->plugin_author = plugin ? plugin->author : NULL;
+    g->plugin_module = plugin ? plugin->module : NULL;
 
-    cg_scope_push(g);   /* $main's top-level scope */
+    cg_scope_push(g);   /* the top-level scope */
+
+    if (g->plugin_mode) {
+        /* plugin mode: only fn declarations are emitted (exported
+           under the author scope); there is no $main */
+        for (size_t u = 0; u < unit_count; u++) {
+            ASTBlock *unit = programs[u];
+            for (size_t i = 0; i < unit->count; i++) {
+                ASTNode *st = unit->stmts[i];
+                if (st->type == AST_FN_DECL) {
+                    gen_stmt(g, st);
+                    continue;
+                }
+                note(g, st->loc, 1,
+                     "plugin mode: top-level statements are ignored "
+                     "(plugins export fn declarations only)");
+            }
+        }
+        cg_scope_pop(g);
+
+        if (errors)
+            *errors = g->errors;
+        if (g->errors > 0) {
+            free(g->data.buf);
+            free(g->funcs.buf);
+            free(g->main.buf);
+            for (size_t i = 0; i < g->fn_sym_count; i++)
+                free(g->fn_syms[i]);
+            return NULL;
+        }
+
+        StrBuf out;
+        sb_init(&out);
+        sb_put(&out, "# pith v" PITH_VERSION
+                     " — QBE SSA plugin generated by pith (ARC on "
+                     "strings)\n");
+        if (g->data.len > 0) {
+            sb_put(&out, "\n");
+            sb_putn(&out, g->data.buf, g->data.len);
+        }
+        if (g->funcs.len > 0) {
+            sb_put(&out, "\n");
+            sb_putn(&out, g->funcs.buf, g->funcs.len);
+        }
+        sb_put(&out, "\n");
+
+        free(g->data.buf);
+        free(g->funcs.buf);
+        free(g->main.buf);
+        for (size_t i = 0; i < g->fn_sym_count; i++)
+            free(g->fn_syms[i]);
+        return out.buf;
+    }
 
     EMIT("export function w $main() {\n");
     EMIT("@main.start\n");

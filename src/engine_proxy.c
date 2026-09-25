@@ -161,7 +161,7 @@ int pith_find_config_upwards(char *out, size_t n)
  * hit wins: $PITH_TCCDIR, the vendored tcc tree (compiled-in path or
  * relative to the binary), then a system tcc install.
  */
-static const char *tcc_dir(void)
+const char *pith_tcc_dir(void)
 {
     static char cached[4096];
     static int tried = 0;
@@ -562,26 +562,15 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
                    size_t nextra, const PithImportUnit *imports,
                    size_t nimports)
 {
-    char obj_path[4096];
-    suffix_swap(asm_path, ".o", obj_path, sizeof(obj_path));
-
-    const char *as_bin = getenv("PITH_AS");
-    if (!as_bin || !*as_bin)
-        as_bin = "as";
-    char cmd[8192];
-    snprintf(cmd, sizeof(cmd), "%s \"%s\" -o \"%s\" 2>/dev/null",
-             as_bin, asm_path, obj_path);
-    int rc = run_cmd(cmd);
-    if (rc != 0)
-        return -1;
-
-    const char *tdir = tcc_dir();
+    const char *tdir = pith_tcc_dir();
     if (!tdir)
         return -1;
 
     TCCState *tcc = tcc_new();
     if (!tcc)
         return -1;
+
+    int rc;
 
     /* must precede tcc_set_output_type: the {B}-substituted library
        paths are materialized there, so libtcc1.a is found in tdir */
@@ -604,12 +593,26 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
             fprintf(stderr, "pith engine: cannot stage the <pith.h> "
                             "virtual header\n");
             tcc_delete(tcc);
-            unlink(obj_path);
             return -1;
         }
         have_inc = 1;
 
         for (size_t i = 0; i < nimports && nimport_states < 64; i++) {
+            if (imports[i].is_plugin) {
+                /* a compiled pith plugin: load its object directly
+                   (tcc's loader handles ELF objects); no C compile */
+                if (tcc_add_file(tcc, imports[i].path) < 0) {
+                    fprintf(stderr, "pith engine: failed to load the "
+                                    "plugin object %s\n",
+                            imports[i].path);
+                    while (nimport_states > 0)
+                        tcc_delete(import_states[--nimport_states]);
+                    cleanup_ffi_header(inc_dir);
+                    tcc_delete(tcc);
+                    return -1;
+                }
+                continue;
+            }
             TCCState *is = NULL;
             if (compile_import_jit(tcc, &imports[i], inc_dir, tdir,
                                    &is) != 0) {
@@ -617,22 +620,23 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
                     tcc_delete(import_states[--nimport_states]);
                 cleanup_ffi_header(inc_dir);
                 tcc_delete(tcc);
-                unlink(obj_path);
                 return -1;
             }
             import_states[nimport_states++] = is;
         }
     }
 
-    if (tcc_add_file(tcc, obj_path) < 0) {
-        fprintf(stderr, "pith engine: libtcc failed to load the "
-                        "compiled object\n");
+    /* the QBE assembly is assembled in-process by tcc's built-in
+       assembler: tcc_add_file dispatches .s files to it, so no GNU
+       as (or any external assembler) is needed */
+    if (tcc_add_file(tcc, asm_path) < 0) {
+        fprintf(stderr, "pith engine: libtcc failed to assemble the "
+                        "generated assembly\n");
         while (nimport_states > 0)
             tcc_delete(import_states[--nimport_states]);
         if (have_inc)
             cleanup_ffi_header(inc_dir);
         tcc_delete(tcc);
-        unlink(obj_path);
         return -1;
     }
     if (tcc_relocate(tcc) < 0) {
@@ -643,7 +647,6 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
         if (have_inc)
             cleanup_ffi_header(inc_dir);
         tcc_delete(tcc);
-        unlink(obj_path);
         return -1;
     }
 
@@ -655,7 +658,6 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
         if (have_inc)
             cleanup_ffi_header(inc_dir);
         tcc_delete(tcc);
-        unlink(obj_path);
         return -1;
     }
 
@@ -667,7 +669,6 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
     if (have_inc)
         cleanup_ffi_header(inc_dir);
     tcc_delete(tcc);
-    unlink(obj_path);
     return rc < 0 ? 255 : rc;   /* keep -1 reserved for engine failure */
 }
 
@@ -739,7 +740,8 @@ int engine_dispatch_run(const char *asm_src, const char *asm_path,
 
 int engine_build_aot(const char *asm_path, const char *obj_path,
                      const char *output_path, const char *runtime_lib,
-                     const PithImportUnit *imports, size_t nimports)
+                     const PithImportUnit *imports, size_t nimports,
+                     const char *const *prebuilt_objs, size_t nprebuilt)
 {
     char imp_objs[64][4096];
     size_t nimp_objs = 0;
@@ -748,17 +750,35 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
     int have_inc = 0;
     imp_args[0] = '\0';
 
-    /* 1. assemble the QBE output */
-    const char *as_bin = getenv("PITH_AS");
-    if (!as_bin || !*as_bin)
-        as_bin = "as";
-    char cmd[16384];
-    snprintf(cmd, sizeof(cmd), "%s \"%s\" -o \"%s\"",
-             as_bin, asm_path, obj_path);
-    if (run_cmd(cmd) != 0) {
-        fprintf(stderr, "pith engine: `as` failed to assemble the "
-                        "generated assembly\n");
-        return -1;
+    /* 1. assemble the QBE output:
+          non-Darwin: the embedded tcc's built-in assembler (in-process)
+          Darwin: clang's assembler */
+    {
+        int asm_ok = 0;
+#if !defined(__APPLE__) && defined(PITH_HAVE_LIBTCC)
+        {
+            const char *tdir0 = pith_tcc_dir();
+            TCCState *cs = tcc_new();
+            if (cs) {
+                if (tdir0)
+                    tcc_set_lib_path(cs, tdir0);
+                tcc_set_output_type(cs, TCC_OUTPUT_OBJ);
+                asm_ok = tcc_add_file(cs, asm_path) == 0 &&
+                         tcc_output_file(cs, obj_path) == 0;
+                tcc_delete(cs);
+            }
+        }
+#else
+        char cmd[16384];
+        snprintf(cmd, sizeof(cmd),
+                 "clang -c \"%s\" -o \"%s\"", asm_path, obj_path);
+        asm_ok = (run_cmd(cmd) == 0);
+#endif
+        if (!asm_ok) {
+            fprintf(stderr, "pith engine: failed to assemble the "
+                            "generated assembly\n");
+            return -1;
+        }
     }
 
     /* 1b. compile every imported C unit into an object file next to
@@ -777,13 +797,16 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
             base_len -= 2;
 
         for (size_t i = 0; i < nimports && nimp_objs < 64; i++) {
+            if (imports[i].is_plugin)
+                continue;   /* the plugin's object is pre-built and
+                               joined via prebuilt_objs */
             snprintf(imp_objs[nimp_objs], sizeof(imp_objs[0]),
                      "%.*s_imp%zu.o", (int)base_len, obj_path, i);
 
             int ok = 0;
 #if defined(PITH_HAVE_LIBTCC)
             {
-                const char *tdir0 = tcc_dir();
+                const char *tdir0 = pith_tcc_dir();
                 TCCState *cs = tcc_new();
                 if (cs) {
                     if (tdir0)
@@ -837,6 +860,13 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
                 break;
             at += (size_t)w;
         }
+        for (size_t i = 0; i < nprebuilt; i++) {
+            int w = snprintf(imp_args + at, sizeof(imp_args) - at,
+                             " \"%s\"", prebuilt_objs[i]);
+            if (w < 0 || (size_t)w >= sizeof(imp_args) - at)
+                break;
+            at += (size_t)w;
+        }
     }
 
     /* 2. link */
@@ -878,7 +908,7 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
     /* tcc is embedded: link in-process with its built-in ELF linker —
        no external linker or subprocess on this path. */
     {
-        const char *tdir = tcc_dir();
+        const char *tdir = pith_tcc_dir();
         TCCState *tcc = tcc_new();
         int ok = 0;
         if (tcc) {
@@ -890,6 +920,8 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
             ok = tcc_add_file(tcc, obj_path) == 0;
             for (size_t i = 0; ok && i < nimp_objs; i++)
                 ok = tcc_add_file(tcc, imp_objs[i]) == 0;
+            for (size_t i = 0; ok && i < nprebuilt; i++)
+                ok = tcc_add_file(tcc, prebuilt_objs[i]) == 0;
             if (ok)
                 ok = tcc_add_file(tcc, runtime_lib) == 0 &&
                      tcc_output_file(tcc, output_path) == 0;
@@ -906,7 +938,8 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
     }
 #endif
     /* fallback: a tcc binary (vendored or from PATH) */
-    const char *tdir = tcc_dir();
+    const char *tdir = pith_tcc_dir();
+    char cmd[16384];
     if (tdir) {
         char tcc_bin[4096];
         snprintf(tcc_bin, sizeof(tcc_bin), "%s/tcc", tdir);
