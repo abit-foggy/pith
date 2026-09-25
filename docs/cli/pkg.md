@@ -44,12 +44,40 @@ On Windows NT: checks token elevation via `OpenProcessToken` and
 ## Sources
 
 Packages resolve from (in order):
-1. `PITH_REGISTRY`, a local directory of tarballs (`<name>-<ver>.tar`)
+1. `PITH_REGISTRY`, a local directory of tarballs (`<name>-<ver>.tar`
+   or compiled plugin bundles `<name>-<ver>.ppkg`)
 2. Already-installed scopes (user, then machine root)
-3. A path directly in `pith.toml` (e.g., `mylib = "./libs/mylib"`)
+3. A path directly in `pith.toml` (e.g., `mylib = "./libs/mylib"` or
+   a plugin bundle `myplugin = "./dist/myplugin.ppkg"`)
 
 Remote fetching is not implemented in v0.1, the local-first design
 means the cache is consulted before anything external.
+
+### Installing pith plugins (.ppkg)
+
+A `.ppkg` (a plugin built with `pith build --plugin`) installs like a
+tar bundle: it is unpacked into the scope directory, giving
+`plugin.o` (the compiled, author-namespaced object) and `manifest`
+(the symbol table).
+
+```
+pith pkg: installed myplugin@/path/myplugin.ppkg -> .pith/pkgs/myplugin@...
+pith pkg: 1 package installed
+```
+
+Consuming projects list the plugin under `[dependencies]`; their
+builds read the manifest, register the plugin's namespace
+(`<author>.<module>.*`), and link the plugin's object. The plugin's
+functions are then callable as `<author>.<module>.<fn>`:
+
+```pith
+if alice.myos.identifyKernel == 42
+    print "plugin works"
+end
+```
+
+See [pith build](/cli/build) for building plugins and
+[Namespaces](/namespaces) for the resolution rules.
 
 ## pith pkg install
 

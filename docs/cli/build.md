@@ -29,9 +29,42 @@ linker.
 |---|---|
 | `-o <path>` | Output path (default: input basename sans `.pi`) |
 | `--embed-source` | Attach the workspace as a tar overlay with a `PITHDEBG` footer |
+| `--plugin` | Build an installable plugin (.ppkg) instead of an executable |
 
 `--embed-source` can also be set permanently via `build.embedSource =
-true` in `pith.toml`.
+true` in `pith.toml`; `--plugin` via `toolchain.pithPlugin = "yes"`.
+
+## Plugin builds (.ppkg)
+
+With `--plugin` (or `[toolchain].pithPlugin = "yes"`), the build
+produces `<name>.ppkg`, a tar bundle containing:
+
+| Entry | What it is |
+|---|---|
+| `plugin.o` | The compiled object with exported `c_<author>_<module>_<fn>` symbols |
+| `manifest` | The plugin's symbol table: author, module, and each fn (name, return class, parameter count) |
+
+The author comes from `[project].author`; the module from
+`[project].name`. Only `fn` declarations are exported (zero-parameter,
+returning 64-bit integers in v0.1); top-level statements are ignored.
+
+```
+pith build myos.pi --plugin -o myplugin
+# built plugin myplugin.ppkg (2 exported fns)
+```
+
+The plugin is installable with `pith pkg` (from the .ppkg or from
+source) and callable from consuming projects as
+`<author>.<module>.<fn>`:
+
+```pith
+if alice.myos.identifyKernel == 42
+    print "plugin works"
+end
+```
+
+See [pith pkg](/cli/pkg) for installing and
+[Namespaces](/namespaces) for the resolution rules.
 
 ## Multi-file (WPSSAC)
 

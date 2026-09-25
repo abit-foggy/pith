@@ -27,9 +27,34 @@ line.
 
 ### `[toolchain]`
 
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `pithVersion` | string | (none) | Pin the compiler version; forwards via execv when it differs from the running binary |
+| `pithPlugin` | yes/no (or true/false) | `no` | Build this project as an installable plugin (`.ppkg`) rather than an executable |
+
+With `pithPlugin = yes`, `pith build` produces `<name>.ppkg`: a
+bundle containing the compiled plugin object (with exported
+`c_<author>_<module>_<fn>` symbols) and a manifest (author, module,
+fn list). Other projects install it with `pith pkg` and call its
+functions as `<author>.<module>.<fn>` — see
+[pith build](/cli/build) and [pith pkg](/cli/pkg).
+
+### `[project]` author
+
 | Key | Type | Description |
 |---|---|---|
-| `pithVersion` | string | Pin the compiler version; forwards via execv when it differs from the running binary |
+| `author` | string | The project's author scope: plugin symbols are exported under `c_<author>_<module>_<fn>` and consumed as `<author>.<module>.<fn>` |
+
+```toml
+[project]
+name = "myos"
+author = "alice"
+
+[toolchain]
+pithPlugin = "yes"
+```
+
+A consumer of this plugin calls `alice.myos.identifyKernel`.
 
 ### `[dependencies]`
 

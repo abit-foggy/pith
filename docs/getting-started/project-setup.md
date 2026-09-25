@@ -116,6 +116,45 @@ pith decompile ./app
 
 See [pith decompile](/cli/decompile) and [pith build](/cli/build).
 
+## Plugins (.ppkg)
+
+Build the project as an installable plugin: set
+`[toolchain].pithPlugin = "yes"` (or pass `--plugin`), give the
+project an author, and build:
+
+```toml
+[project]
+name = "myos"
+author = "alice"
+
+[toolchain]
+pithPlugin = "yes"
+```
+
+```sh
+pith build myos.pi --plugin -o myplugin
+# built plugin myplugin.ppkg (2 exported fns)
+```
+
+The `.ppkg` is a bundle: `plugin.o` (the compiled object with
+exported `c_<author>_<module>_<fn>` symbols) and `manifest` (the
+symbol table). Install it into another project:
+
+```sh
+cd ../consumer
+pith pkg add myplugin 1.0.0        # or a path in pith.toml
+```
+
+And call its functions:
+
+```pith
+if alice.myos.identifyKernel == 42
+    print "plugin works"
+end
+```
+
+See [pith build](/cli/build) and [pith pkg](/cli/pkg).
+
 ## Toolchain pinning
 
 Pin a project to a specific compiler version:
