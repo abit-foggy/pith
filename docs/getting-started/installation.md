@@ -2,30 +2,41 @@
 
 ## From GitHub releases (recommended)
 
-```sh
+::: code-group
+```sh [POSIX shell]
 curl -fsSL https://raw.githubusercontent.com/abit-foggy/pith/main/install.sh | sh
 ```
-
-This downloads the latest release and installs into `~/.local`:
-
+```powershell [PowerShell]
+iwr https://raw.githubusercontent.com/abit-foggy/pith/main/install.ps1 -UseBasicParsing | iex
 ```
-~/.local/bin/pith                       , the toolchain binary
-~/.local/lib/pith/tcc/libtcc1.a         , vendored tcc runtime
-~/.local/lib/pith/runtime/libruntime.a  , ARC runtime library
-~/.local/include/pith.h                , FFI header
-~/.local/include/api.h                  , runtime ABI bindings
+```cmd [Command Prompt]
+curl -fsSL https://raw.githubusercontent.com/abit-foggy/pith/main/install.cmd -o install.cmd && install.cmd
 ```
+:::
 
-Add `~/.local/bin` to your `PATH` if it isn't already:
+This downloads the latest release and installs under a prefix
+(`~/.local` on POSIX, `%LOCALAPPDATA%\pith` on Windows NT):
 
-```sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
-```
+| Path | What it is |
+|---|---|
+| `<prefix>/bin/pith` | The toolchain binary (libtcc embedded statically) |
+| `<prefix>/lib/pith/tcc/libtcc1.a` | The vendored tcc runtime |
+| `<prefix>/lib/pith/runtime/libruntime.a` | The ARC runtime library |
+| `<prefix>/include/pith.h` (+ other headers) | The FFI and ABI headers |
+
+Add `<prefix>/bin` to your `PATH` if it isn't already (the installer
+prints the exact command).
+
+### macOS note
+
+The installer checks for the Xcode command line utilities (they
+provide clang and the SDK). If missing, it offers to install them
+(`xcode-select --install`, password prompt).
 
 ### Installer overrides
 
 ```sh
-PREFIX=/usr/local sh install.sh          # install system-wide
+PREFIX=/usr/local sh install.sh          # install system-wide (POSIX)
 PITH_REPO=owner/pith sh install.sh       # use a fork
 PITH_TAG=v0.1.0 sh install.sh            # install a specific version
 ```
@@ -53,14 +64,16 @@ make check
 
 ## External tools
 
-Pith needs two external tools at runtime:
+Pith needs one external tool at runtime:
 
 | Tool | Purpose | Install |
 |---|---|---|
 | `qbe` | Lowers QBE IL to machine assembly | [QBE](https://c9x.me/compile/) |
-| `as` | Assembles the output | GNU binutils (pre-installed on Linux) |
 
-`mold` is optional (used for Darwin AOT builds only).
+The assembly is assembled **in-process** by the embedded tcc's
+built-in assembler (Linux, Windows NT, FreeBSD); on Darwin, clang's
+assembler is used (from the Xcode command line utilities). `mold` is
+optional (Darwin AOT builds only).
 
 ## Verify
 

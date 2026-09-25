@@ -78,7 +78,6 @@ All runtime behavior is overridable without editing config files:
 | Variable | Default | Description |
 |---|---|---|
 | `PITH_QBE` | `qbe` | Path to the QBE compiler binary |
-| `PITH_AS` | `as` | Path to the assembler |
 | `PITH_CC` | `cc` | Compiler driver / system linker |
 | `PITH_MOLD` | `mold` | mold linker override |
 | `PITH_TCC` | `tcc` | tcc binary override |
