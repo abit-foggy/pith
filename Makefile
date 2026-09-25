@@ -75,13 +75,24 @@ $(RUNTIME_LIB): $(RUNTIME_OBJS)
 # Vendored tcc (libtcc)
 # ------------------------------------------------------------------
 
+# Pith carries a small patch for the vendored tcc (missing scalar SSE
+# opcodes: movsd/movss/addsd/... that QBE's float codegen emits). The
+# patch is applied automatically after a fresh submodule checkout; it
+# is also tracked in patches/ for upstreaming (see docs/vendor-tcc.md).
+vendor/tcc/.pith-patched: patches/tcc-scalar-sse.patch vendor/tcc/x86_64-asm.h
+	if grep -q "movsd" vendor/tcc/x86_64-asm.h; then \
+		touch vendor/tcc/.pith-patched; \
+	else \
+		cd vendor/tcc && patch -p1 -N < ../../patches/tcc-scalar-sse.patch && touch .pith-patched; \
+	fi
+
 vendor/tcc/config.mak: vendor/tcc/configure
 	cd $(VENDOR_TCC) && ./configure
 
 # The vendored tcc Makefile invokes `ar` from PATH; prefix PATH with
 # the directory of the archiver detected above (BusyBox ar cannot
 # create archives).
-$(LIBTCC): $(VENDOR_TCC)/config.mak
+$(LIBTCC): $(VENDOR_TCC)/config.mak $(VENDOR_TCC)/.pith-patched
 	AR_BIN=""; \
 	for a in /usr/bin/ar `command -v x86_64-linux-gnu-ar` `command -v llvm-ar`; do \
 		if [ -n "$$a" ] && $$a --version 2>/dev/null | head -n 1 | grep -qE 'GNU ar|LLVM'; then \
