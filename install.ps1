@@ -34,9 +34,9 @@ Write-Host "install.ps1: installing $Tag"
 $Arch = if ([Environment]::Is64BitOperatingSystem) {
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "aarch64" } else { "x86_64" }
 } else { "i386" }
-$Tarball = "pith-$Arch-windows-nt.tar.gz"
+$Tarball = "pith-$Arch-windows.tar.gz"
 $Url = "https://github.com/$Repo/releases/download/$Tag/$Tarball"
-$FallbackTarball = "pith-$Arch-windows-nt-nightly.tar.gz"
+$FallbackTarball = "pith-$Arch-windows-nightly.tar.gz"
 $FallbackUrl = "https://github.com/$Repo/releases/download/$Tag/$FallbackTarball"
 
 $Tmp = Join-Path ([System.IO.Path]::GetTempPath()) "pith-install-$(Get-Random)"
