@@ -63,8 +63,8 @@ if alice.myos.identifyKernel == 42
 end
 ```
 
-See [pith pkg](/cli/pkg) for installing and
-[Namespaces](/namespaces) for the resolution rules.
+See [pith pkg](pkg.md) for installing and
+[Namespaces](../namespaces.md) for the resolution rules.
 
 ## Multi-file (WPSSAC)
 

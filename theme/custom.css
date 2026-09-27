@@ -1,0 +1,234 @@
+/* ==========================================================================
+   The Pith Reference - Custom Modern Design Theme
+   ========================================================================== */
+
+:root {
+    --pith-primary: #10b981;
+    --pith-primary-dark: #059669;
+    --pith-primary-light: #34d399;
+    --pith-accent: #06b6d4;
+    --pith-code-bg: #1e1e2e;
+    --pith-font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* --------------------------------------------------------------------------
+   Typography & Base Styles
+   -------------------------------------------------------------------------- */
+
+body {
+    font-size: 1rem;
+    line-height: 1.7;
+    letter-spacing: -0.01em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 1.8em;
+    margin-bottom: 0.6em;
+}
+
+h1 {
+    font-size: 2.25rem;
+    line-height: 1.25;
+    padding-bottom: 0.3em;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.2);
+}
+
+h2 {
+    font-size: 1.6rem;
+    line-height: 1.35;
+}
+
+h3 {
+    font-size: 1.25rem;
+}
+
+a {
+    color: var(--pith-primary-dark);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    border-bottom: 1px dotted rgba(16, 185, 129, 0.4);
+}
+
+.coal a, .navy a, .ayu a {
+    color: var(--pith-primary-light);
+}
+
+a:hover {
+    color: var(--pith-primary);
+    border-bottom-style: solid;
+}
+
+/* --------------------------------------------------------------------------
+   Code & Preformatted Blocks
+   -------------------------------------------------------------------------- */
+
+code {
+    font-family: var(--pith-font-mono);
+    font-size: 0.88em;
+    padding: 0.2em 0.45em;
+    border-radius: 5px;
+    background-color: rgba(125, 125, 125, 0.12);
+    font-feature-settings: "calt" 1, "liga" 1;
+}
+
+pre {
+    border-radius: 8px;
+    padding: 1.1em 1.3em;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    position: relative;
+    border: 1px solid rgba(125, 125, 125, 0.15);
+}
+
+pre code {
+    padding: 0;
+    background: transparent !important;
+    border-radius: 0;
+    font-size: 0.9em;
+    line-height: 1.65;
+}
+
+/* Copy button styling */
+.copy-button {
+    border-radius: 6px;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.copy-button:hover {
+    opacity: 1;
+    background: rgba(16, 185, 129, 0.2);
+}
+
+/* --------------------------------------------------------------------------
+   Tables
+   -------------------------------------------------------------------------- */
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.6em 0;
+    border: 1px solid rgba(125, 125, 125, 0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+table th {
+    background-color: rgba(16, 185, 129, 0.08);
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 0.95em;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.2);
+}
+
+table td {
+    padding: 11px 16px;
+    border-top: 1px solid rgba(125, 125, 125, 0.12);
+    font-size: 0.92em;
+}
+
+table tr:hover td {
+    background-color: rgba(16, 185, 129, 0.03);
+}
+
+/* --------------------------------------------------------------------------
+   Callout Badges & Blockquotes
+   -------------------------------------------------------------------------- */
+
+blockquote {
+    border-left: 4px solid var(--pith-primary);
+    background-color: rgba(16, 185, 129, 0.06);
+    margin: 1.5em 0;
+    padding: 0.8em 1.2em;
+    border-radius: 0 8px 8px 0;
+}
+
+blockquote p {
+    margin: 0.4em 0;
+}
+
+.badge {
+    display: inline-block;
+    font-family: var(--pith-font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--pith-primary-dark);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    vertical-align: middle;
+}
+
+.coal .badge, .navy .badge, .ayu .badge {
+    color: var(--pith-primary-light);
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar & Navigation
+   -------------------------------------------------------------------------- */
+
+.sidebar {
+    font-size: 0.92rem;
+}
+
+.sidebar .part-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--pith-primary-dark);
+    margin-top: 1.6em;
+    margin-bottom: 0.4em;
+    padding-left: 12px;
+}
+
+.coal .sidebar .part-title, .navy .sidebar .part-title, .ayu .sidebar .part-title {
+    color: var(--pith-primary-light);
+}
+
+.sidebar ol.chapter li a.active {
+    color: var(--pith-primary);
+    font-weight: 700;
+    border-left: 3px solid var(--pith-primary);
+    padding-left: 9px;
+    background-color: rgba(16, 185, 129, 0.08);
+    border-radius: 0 4px 4px 0;
+}
+
+/* --------------------------------------------------------------------------
+   Search Bar Polish
+   -------------------------------------------------------------------------- */
+
+#searchbar {
+    border-radius: 8px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 0.6em 1em;
+    transition: all 0.2s ease;
+}
+
+#searchbar:focus {
+    border-color: var(--pith-primary);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+/* --------------------------------------------------------------------------
+   Keyboard Shortcuts Indicator
+   -------------------------------------------------------------------------- */
+
+kbd {
+    font-family: var(--pith-font-mono);
+    font-size: 0.8em;
+    background: rgba(125, 125, 125, 0.15);
+    border: 1px solid rgba(125, 125, 125, 0.3);
+    border-radius: 4px;
+    padding: 2px 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}

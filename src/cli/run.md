@@ -40,7 +40,7 @@ the runtime symbols into it, relocates it, and links its exported
 functions into the main execution state. The import states stay
 alive until execution finishes.
 
-See [C Imports (FFI)](/ffi).
+See [C Imports (FFI)](../ffi.md).
 
 ## Diagnostics
 

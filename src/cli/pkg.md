@@ -76,8 +76,8 @@ if alice.myos.identifyKernel == 42
 end
 ```
 
-See [pith build](/cli/build) for building plugins and
-[Namespaces](/namespaces) for the resolution rules.
+See [pith build](build.md) for building plugins and
+[Namespaces](../namespaces.md) for the resolution rules.
 
 ## pith pkg install
 

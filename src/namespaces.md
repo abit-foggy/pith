@@ -45,6 +45,12 @@ base = root.os.identifyKernel        # base runtime, bypassing overrides
 | `os.isFreeBSD` | bool | `1` on FreeBSD, `0` elsewhere |
 | `os.isDarwin` | bool | `1` when the kernel is Darwin (macOS and other Darwin systems) |
 | `os.isMacOS` | bool | `1` only on Apple macOS |
+| `os.readFile(path)` | string | File content as an ARC string (or `""` on error) |
+| `os.writeFile(path, content)` | int | `1` on successful write, `0` on error |
+| `os.getEnv(name)` | string | Environment variable value (or `""` if unset) |
+| `os.exit(code)` | void | Immediately terminates the process with exit code |
+| `os.argCount` | int | Total number of CLI arguments passed to the script |
+| `os.getArg(index)` | string | Argument at 0-based index |
 
 ### isDarwin vs isMacOS
 
@@ -65,6 +71,32 @@ if os.isMacOS
     print "apple macos"
 end
 ```
+
+## The builtin `net` namespace
+
+The `net` namespace exposes dead-simple TCP networking primitives. Like `os`, it is always available without an import, mapped directly to the base runtime implementation `root.net.*`:
+
+```pith
+fd = net.connect("127.0.0.1", 8080)
+if fd >= 0
+    net.send(fd, "GET / HTTP/1.0\r\n\r\n")
+    response = net.recv(fd, 4096)
+    print response
+    net.close(fd)
+end
+```
+
+### Members
+
+| Member | Type | Returns |
+|---|---|---|
+| `net.socket()` | int | New TCP socket descriptor (or `-1` on error) |
+| `net.connect(host, port)` | int | Connected socket descriptor (or `-1` on error) |
+| `net.send(fd, message)` | int | Number of bytes sent (or `-1` on error) |
+| `net.recv(fd, maxBytes)` | string | Read data as an ARC string (empty on EOF/error) |
+| `net.close(fd)` | void | Closes the socket descriptor |
+
+Following Pith's namespace standard (`devName.namespace.function`), `root.net.*` represents the builtin implementation, `net.*` represents the active merged view, and custom modules (e.g. `abit.net.*`) can provide extensions or overrides.
 
 ## Developer-scoped imports
 

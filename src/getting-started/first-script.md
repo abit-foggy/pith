@@ -36,7 +36,7 @@ if byte == 0
 end
 ```
 
-See the [Language Reference](/language) for all types and wrapping
+See the [Language Reference](../language/index.md) for all types and wrapping
 semantics.
 
 ## Run it
@@ -142,10 +142,10 @@ pith run script.pi
 pith build script.pi && ./script
 ```
 
-See [C Imports (FFI)](/ffi) for the full ABI contract and type mapping.
+See [C Imports (FFI)](../ffi.md) for the full ABI contract and type mapping.
 
 ## Next steps
 
-- [Setting Up a Project](/getting-started/project-setup) — pith.toml, multi-file builds, tasks
-- [Language Reference](/language) — complete syntax, types, and mutability
-- [CLI Reference](/cli/run) — every command in detail
+- [Setting Up a Project](project-setup.md) — pith.toml, multi-file builds, tasks
+- [Language Reference](../language/index.md) — complete syntax, types, and mutability
+- [CLI Reference](../cli/run.md) — every command in detail

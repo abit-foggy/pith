@@ -41,7 +41,7 @@ pithVersion = "0.1.0"
 run = "pith run main.pi"
 ```
 
-See the [Configuration](/config) page for every table and key.
+See the [Configuration](../config.md) page for every table and key.
 
 ## Multi-file builds
 
@@ -81,7 +81,7 @@ pith deploy prod    # executes tasks.deploy.prod
 ```
 
 Unknown verbs dispatch through `[tasks]`, the rest are built-in
-commands. See [Custom Tasks](/cli/tasks).
+commands. See [Custom Tasks](../cli/tasks.md).
 
 ## Dependencies
 
@@ -95,7 +95,7 @@ This appends to `pith.toml` and runs `sync`, the package is
 installed into `<project>/.pith/pkgs/os-utils@1.0.0/` and recorded in
 `pith.lock` with an FNV-1a integrity hash.
 
-See [pith pkg](/cli/pkg) for all scopes (local, user, machine).
+See [pith pkg](../cli/pkg.md) for all scopes (local, user, machine).
 
 ## Embed the workspace into a binary
 
@@ -114,7 +114,7 @@ pith decompile ./app
 # restored workspace successfully extracted to ./restored_workspace/
 ```
 
-See [pith decompile](/cli/decompile) and [pith build](/cli/build).
+See [pith decompile](../cli/decompile.md) and [pith build](../cli/build.md).
 
 ## Plugins (.ppkg)
 
@@ -153,7 +153,7 @@ if alice.myos.identifyKernel == 42
 end
 ```
 
-See [pith build](/cli/build) and [pith pkg](/cli/pkg).
+See [pith build](../cli/build.md) and [pith pkg](../cli/pkg.md).
 
 ## Toolchain pinning
 
@@ -172,4 +172,4 @@ the toolchain locally first:
 pith engine install 0.1.0
 ```
 
-See [pith engine](/cli/engine).
+See [pith engine](../cli/engine.md).

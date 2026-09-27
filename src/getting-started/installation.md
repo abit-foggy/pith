@@ -2,17 +2,20 @@
 
 ## From GitHub releases (recommended)
 
-::: code-group
-```sh [POSIX shell]
+**POSIX shell (Linux, macOS, FreeBSD)**:
+```sh
 curl -fsSL https://raw.githubusercontent.com/abit-foggy/pith/main/install.sh | sh
 ```
-```powershell [PowerShell]
+
+**Windows (PowerShell)**:
+```powershell
 iwr https://raw.githubusercontent.com/abit-foggy/pith/main/install.ps1 -UseBasicParsing | iex
 ```
-```cmd [Command Prompt]
+
+**Windows (Command Prompt)**:
+```cmd
 curl -fsSL https://raw.githubusercontent.com/abit-foggy/pith/main/install.cmd -o install.cmd && install.cmd
 ```
-:::
 
 This downloads the latest release and installs under a prefix
 (`~/.local` on POSIX, `%LOCALAPPDATA%\pith` on Windows NT):

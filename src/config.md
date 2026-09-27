@@ -37,7 +37,7 @@ bundle containing the compiled plugin object (with exported
 `c_<author>_<module>_<fn>` symbols) and a manifest (author, module,
 fn list). Other projects install it with `pith pkg` and call its
 functions as `<author>.<module>.<fn>` — see
-[pith build](/cli/build) and [pith pkg](/cli/pkg).
+[pith build](cli/build.md) and [pith pkg](cli/pkg.md).
 
 ### `[project]` author
 

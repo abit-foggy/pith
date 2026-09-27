@@ -11,6 +11,10 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,23 +22,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v2
         with:
-          node-version: 20
+          mdbook-version: 'latest'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build docs site
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: npm run docs:build
+      - name: Build with mdBook
+        run: mdbook build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/.vitepress/dist
+          path: book
 
   deploy:
     needs: build
