@@ -338,6 +338,36 @@ int pith_stage_temp(const char *text, const char *suffix,
     return ok ? 0 : -1;
 }
 
+/*
+ * TCC's built-in assembler does not accept quotes around symbol names
+ * in operand positions (e.g. `".Lfp0"(%rip)`), whereas QBE emits quotes
+ * for stashed floating-point constants. Strip them in-place.
+ */
+static void sanitize_asm_symbols(char *s)
+{
+    if (!s)
+        return;
+    char *r = s, *w = s;
+    while (*r) {
+        if (*r == '"') {
+            char *start = r + 1;
+            if (strncmp(start, ".Lfp", 4) == 0 || strncmp(start, "Lfp", 3) == 0) {
+                char *end = start;
+                while (*end && *end != '"' && *end != '\n')
+                    end++;
+                if (*end == '"') {
+                    for (char *p = start; p < end; p++)
+                        *w++ = *p;
+                    r = end + 1;
+                    continue;
+                }
+            }
+        }
+        *w++ = *r++;
+    }
+    *w = '\0';
+}
+
 char *pith_qbe_lower(const char *ssa_path)
 {
     const char *qbe_override = getenv("PITH_QBE");
@@ -354,6 +384,7 @@ char *pith_qbe_lower(const char *ssa_path)
             fprintf(stderr, "error: embedded QBE failed to compile SSA to assembly\n");
             return NULL;
         }
+        sanitize_asm_symbols(asm_code);
         return asm_code;
     }
 #endif
@@ -399,6 +430,7 @@ char *pith_qbe_lower(const char *ssa_path)
         free(buf);
         return NULL;
     }
+    sanitize_asm_symbols(buf);
     return buf;
 }
 
@@ -407,7 +439,9 @@ char *pith_qbe_lower_string(const char *ssa_text)
 #if defined(PITH_HAVE_LIBQBE)
     const char *qbe_override = getenv("PITH_QBE");
     if (!qbe_override || !*qbe_override) {
-        return qbe_compile_string(ssa_text, 0);
+        char *asm_code = qbe_compile_string(ssa_text, 0);
+        sanitize_asm_symbols(asm_code);
+        return asm_code;
     }
 #endif
     char ssa_path[4096];
@@ -733,7 +767,8 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
  * Fallback / Darwin path: link a temporary executable with the system
  * compiler driver and execute it immediately.
  */
-static int run_temp_exec(const char *asm_path)
+static int run_temp_exec(const char *asm_path,
+                         const PithImportUnit *imports, size_t nimports)
 {
     char rtlib[4096];
     if (!engine_find_runtime_lib(rtlib, sizeof(rtlib))) {
@@ -742,30 +777,20 @@ static int run_temp_exec(const char *asm_path)
         return -1;
     }
 
+    char obj_path[4096];
     char exe_path[4096];
-    suffix_swap(asm_path, ".bin", exe_path, sizeof(exe_path));
+    if (suffix_swap(asm_path, ".o", obj_path, sizeof(obj_path)) != 0 ||
+        suffix_swap(asm_path, ".bin", exe_path, sizeof(exe_path)) != 0)
+        return -1;
 
-    const char *cc_bin = getenv("PITH_CC");
-    if (!cc_bin || !*cc_bin)
-        cc_bin = "cc";
-
-    char cmd[16384];
-#ifdef __APPLE__
-    /* ad-hoc signing happens automatically in the link step */
-    snprintf(cmd, sizeof(cmd),
-             "clang -O0 \"%s\" \"%s\" -o \"%s\"", asm_path, rtlib, exe_path);
-#else
-    snprintf(cmd, sizeof(cmd),
-             "%s \"%s\" \"%s\" -o \"%s\"", cc_bin, asm_path, rtlib, exe_path);
-#endif
-
-    if (run_cmd(cmd) != 0) {
-        fprintf(stderr, "pith engine: failed to link the temporary "
-                        "executable\n");
+    if (engine_build_aot(asm_path, obj_path, exe_path, rtlib,
+                         imports, nimports, NULL, 0) != 0) {
+        unlink(obj_path);
         return -1;
     }
 
     int rc = run_cmd(exe_path);
+    unlink(obj_path);
     unlink(exe_path);
     if (rc < 0)
         return -1;
@@ -786,7 +811,7 @@ int engine_dispatch_run(const char *asm_src, const char *asm_path,
                     "temp-executable path\n");
 #endif
 
-    return run_temp_exec(asm_path);
+    return run_temp_exec(asm_path, imports, nimports);
 }
 
 /* ------------------------------------------------------------------ */
@@ -891,10 +916,27 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
                 const char *cc0 = getenv("PITH_CC");
                 if (!cc0 || !*cc0)
                     cc0 = "cc";
+                char defs[8192];
+                defs[0] = '\0';
+                size_t dat = 0;
+                for (size_t f = 0; f < imports[i].nfn; f++) {
+                    char mangled[192];
+                    pith_cffi_mangled_name(imports[i].author,
+                                           imports[i].ns,
+                                           imports[i].fns[f].name,
+                                           mangled,
+                                           sizeof(mangled));
+                    int w = snprintf(defs + dat, sizeof(defs) - dat,
+                                     " \"-D%s=%s\"", imports[i].fns[f].name,
+                                     mangled);
+                    if (w < 0 || (size_t)w >= sizeof(defs) - dat)
+                        break;
+                    dat += (size_t)w;
+                }
                 char ccmd[16384];
                 snprintf(ccmd, sizeof(ccmd),
-                         "%s -c -I\"%s\" \"%s\" -o \"%s\"", cc0,
-                         inc_dir, imports[i].path, imp_objs[nimp_objs]);
+                         "%s -c -I\"%s\"%s \"%s\" -o \"%s\"", cc0,
+                         inc_dir, defs, imports[i].path, imp_objs[nimp_objs]);
                 ok = (run_cmd(ccmd) == 0);
             }
 #endif
@@ -941,8 +983,8 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
 
     if (mold && clang) {
         snprintf(cmd, sizeof(cmd),
-                 "clang -fuse-ld=mold -o \"%s\" \"%s\" \"%s\"%s",
-                 output_path, obj_path, runtime_lib, imp_args);
+                 "clang -fuse-ld=mold -o \"%s\" \"%s\"%s \"%s\"",
+                 output_path, obj_path, imp_args, runtime_lib);
         if (run_cmd(cmd) == 0) {
             fprintf(stderr, "pith engine: linked with mold\n");
             link_rc = 0;
@@ -951,8 +993,8 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
     }
     if (mold) {
         snprintf(cmd, sizeof(cmd),
-                 "cc -fuse-ld=mold -o \"%s\" \"%s\" \"%s\"%s",
-                 output_path, obj_path, runtime_lib, imp_args);
+                 "cc -fuse-ld=mold -o \"%s\" \"%s\"%s \"%s\"",
+                 output_path, obj_path, imp_args, runtime_lib);
         if (run_cmd(cmd) == 0) {
             fprintf(stderr, "pith engine: linked with mold\n");
             link_rc = 0;
@@ -961,7 +1003,7 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
     }
 #else
 #if defined(PITH_USE_TCC)
-    /* tcc is embedded: link in-process with its built-in ELF linker  - 
+    /* tcc is embedded: link in-process with its built-in ELF linker - 
        no external linker or subprocess on this path. */
     {
         const char *tdir = pith_tcc_dir();
@@ -1000,9 +1042,9 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
         snprintf(tcc_bin, sizeof(tcc_bin), "%s/tcc", tdir);
         if (access(tcc_bin, X_OK) == 0) {
             snprintf(cmd, sizeof(cmd),
-                     "\"%s\" -B \"%s\" -o \"%s\" \"%s\" \"%s\"%s",
-                     tcc_bin, tdir, output_path, obj_path, runtime_lib,
-                     imp_args);
+                     "\"%s\" -B \"%s\" -o \"%s\" \"%s\"%s \"%s\"",
+                     tcc_bin, tdir, output_path, obj_path, imp_args,
+                     runtime_lib);
             if (run_cmd(cmd) == 0) {
                 fprintf(stderr, "pith engine: linked with the tcc "
                                 "linker\n");
@@ -1015,9 +1057,9 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
     const char *tcc_bin_env = getenv("PITH_TCC");
     if (tcc_bin_env && *tcc_bin_env) {
         snprintf(cmd, sizeof(cmd),
-                 "\"%s\" -o \"%s\" \"%s\" \"%s\"%s",
-                 tcc_bin_env, output_path, obj_path, runtime_lib,
-                 imp_args);
+                 "\"%s\" -o \"%s\" \"%s\"%s \"%s\"",
+                 tcc_bin_env, output_path, obj_path, imp_args,
+                 runtime_lib);
         if (run_cmd(cmd) == 0) {
             fprintf(stderr, "pith engine: linked with the tcc linker\n");
             link_rc = 0;
@@ -1029,8 +1071,8 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
                                             sizeof(tcc_path));
         if (tcc) {
             snprintf(cmd, sizeof(cmd),
-                     "\"%s\" -o \"%s\" \"%s\" \"%s\"%s",
-                     tcc, output_path, obj_path, runtime_lib, imp_args);
+                     "\"%s\" -o \"%s\" \"%s\"%s \"%s\"",
+                     tcc, output_path, obj_path, imp_args, runtime_lib);
             if (run_cmd(cmd) == 0) {
                 fprintf(stderr, "pith engine: linked with the tcc "
                                 "linker\n");
@@ -1047,8 +1089,8 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
         if (!cc_bin || !*cc_bin)
             cc_bin = "cc";
         snprintf(cmd, sizeof(cmd),
-                 "%s -o \"%s\" \"%s\" \"%s\"%s",
-                 cc_bin, output_path, obj_path, runtime_lib, imp_args);
+                 "%s -o \"%s\" \"%s\"%s \"%s\"",
+                 cc_bin, output_path, obj_path, imp_args, runtime_lib);
         if (run_cmd(cmd) != 0) {
             fprintf(stderr, "pith engine: linking failed\n");
             goto aot_cleanup_fail;
