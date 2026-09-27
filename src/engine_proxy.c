@@ -23,6 +23,9 @@
  *   ~/.pith/toolchains/<ver>/bin/pith, letting multiple compiler
  *   versions coexist per project.
  */
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE 1
+#endif
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdio.h>
@@ -923,6 +926,7 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
 
     /* 2. link */
     int link_rc = -1;
+    char cmd[16384];
 #ifdef __APPLE__
     /* Darwin: mold through the compiler driver (crt objects and libc
        join the link correctly), falling back to the system linker. */
@@ -991,7 +995,6 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
 #endif
     /* fallback: a tcc binary (vendored or from PATH) */
     const char *tdir = pith_tcc_dir();
-    char cmd[16384];
     if (tdir) {
         char tcc_bin[4096];
         snprintf(tcc_bin, sizeof(tcc_bin), "%s/tcc", tdir);
