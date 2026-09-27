@@ -51,6 +51,7 @@ jobs:
           make test-wine
 
       - name: test darwin mach-o build
+        if: matrix.os == 'ubuntu-latest'
         run: |
           make test-darwin
 
