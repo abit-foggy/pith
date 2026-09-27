@@ -1,5 +1,5 @@
 /* ==========================================================================
-   The Pith Reference - Custom Modern Design Theme
+   The Pith Reference - Custom Modern Design Theme (Sharp Brutalist Aesthetic)
    ========================================================================== */
 
 :root {
@@ -13,6 +13,14 @@
     --pith-accent: #06b6d4;
     --pith-code-bg: #1e1e2e;
     --pith-font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* --------------------------------------------------------------------------
+   Global Sharp Corners (No Rounded Corners)
+   -------------------------------------------------------------------------- */
+
+*, *::before, *::after {
+    border-radius: 0 !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -83,62 +91,63 @@ a:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Code & Preformatted Blocks
+   Code & Preformatted Blocks (Square & Sharp)
    -------------------------------------------------------------------------- */
 
 code {
     font-family: var(--pith-font-mono);
     font-size: 0.92em;
     padding: 0.22em 0.5em;
-    border-radius: 6px;
+    border-radius: 0 !important;
     background-color: rgba(125, 125, 125, 0.14);
     font-feature-settings: "calt" 1, "liga" 1;
 }
 
 pre {
-    border-radius: 9px;
+    border-radius: 0 !important;
     padding: 1.25em 1.5em;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     position: relative;
-    border: 1px solid rgba(125, 125, 125, 0.18);
+    border: 1px solid rgba(125, 125, 125, 0.22);
     margin: 1.5em 0;
 }
 
 pre code {
     padding: 0;
     background: transparent !important;
-    border-radius: 0;
-    font-size: 1.52rem; /* 15.2px */
+    border-radius: 0 !important;
+    font-size: 1.52rem;
     line-height: 1.68;
 }
 
-/* Copy button styling */
+/* Copy button styling (Square) */
 .copy-button {
-    border-radius: 6px;
+    border-radius: 0 !important;
     opacity: 0.7;
     transition: all 0.2s ease;
     top: 8px;
     right: 8px;
     padding: 6px 8px;
+    border: 1px solid transparent;
 }
 
 .copy-button:hover {
     opacity: 1;
     background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.4);
 }
 
 /* --------------------------------------------------------------------------
-   Tables
+   Tables (Square & Crisp)
    -------------------------------------------------------------------------- */
 
 table {
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    border-radius: 8px;
+    border-collapse: collapse;
+    border-radius: 0 !important;
     overflow: hidden;
     margin: 1.8em 0;
-    border: 1px solid rgba(125, 125, 125, 0.2);
+    border: 1px solid rgba(125, 125, 125, 0.25);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
@@ -149,12 +158,14 @@ table th {
     padding: 13px 18px;
     font-size: 1.6rem;
     border-bottom: 2px solid rgba(16, 185, 129, 0.25);
+    border-radius: 0 !important;
 }
 
 table td {
     padding: 12px 18px;
     border-top: 1px solid rgba(125, 125, 125, 0.14);
     font-size: 1.55rem;
+    border-radius: 0 !important;
 }
 
 table tr:hover td {
@@ -162,7 +173,7 @@ table tr:hover td {
 }
 
 /* --------------------------------------------------------------------------
-   Callout Badges & Blockquotes
+   Callout Badges & Blockquotes (Square)
    -------------------------------------------------------------------------- */
 
 blockquote {
@@ -170,7 +181,7 @@ blockquote {
     background-color: rgba(16, 185, 129, 0.07);
     margin: 1.6em 0;
     padding: 1em 1.4em;
-    border-radius: 0 8px 8px 0;
+    border-radius: 0 !important;
     font-size: 1.65rem;
 }
 
@@ -184,12 +195,12 @@ blockquote p {
     font-size: 1.25rem;
     font-weight: 600;
     padding: 0.2rem 0.65rem;
-    border-radius: 9999px;
+    border-radius: 0 !important;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     background: rgba(16, 185, 129, 0.15);
     color: var(--pith-primary-dark);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    border: 1px solid rgba(16, 185, 129, 0.4);
     vertical-align: middle;
 }
 
@@ -198,11 +209,11 @@ blockquote p {
 }
 
 /* --------------------------------------------------------------------------
-   Sidebar & Navigation
+   Sidebar & Navigation (Square)
    -------------------------------------------------------------------------- */
 
 .sidebar {
-    font-size: 1.55rem; /* 15.5px */
+    font-size: 1.55rem;
 }
 
 .sidebar .part-title {
@@ -223,6 +234,7 @@ blockquote p {
 .sidebar ol.chapter li a {
     padding: 5px 12px;
     line-height: 1.4;
+    border-radius: 0 !important;
 }
 
 .sidebar ol.chapter li a.active {
@@ -231,28 +243,29 @@ blockquote p {
     border-left: 3px solid var(--pith-primary);
     padding-left: 9px;
     background-color: rgba(16, 185, 129, 0.08);
-    border-radius: 0 4px 4px 0;
+    border-radius: 0 !important;
 }
 
 /* --------------------------------------------------------------------------
-   Search Bar Polish
+   Search Bar (Square)
    -------------------------------------------------------------------------- */
 
 #searchbar {
     font-size: 1.6rem;
-    border-radius: 8px;
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 0 !important;
+    border: 1px solid rgba(16, 185, 129, 0.35);
     padding: 0.7em 1.1em;
     transition: all 0.2s ease;
 }
 
 #searchbar:focus {
     border-color: var(--pith-primary);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+    border-radius: 0 !important;
 }
 
 /* --------------------------------------------------------------------------
-   Keyboard Shortcuts Indicator
+   Keyboard Shortcuts & Buttons (Square)
    -------------------------------------------------------------------------- */
 
 kbd {
@@ -260,7 +273,11 @@ kbd {
     font-size: 1.35rem;
     background: rgba(125, 125, 125, 0.15);
     border: 1px solid rgba(125, 125, 125, 0.3);
-    border-radius: 4px;
+    border-radius: 0 !important;
     padding: 2px 7px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: none;
+}
+
+button, input, select, textarea {
+    border-radius: 0 !important;
 }
