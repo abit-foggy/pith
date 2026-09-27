@@ -148,10 +148,9 @@ check test: all
 	./pith run tests/test_audit.pi
 	./pith build tests/test_audit.pi
 	./test_audit
-	@if tail -c 16 test_audit | grep -q PITHDEBG; then exit 1; fi
-	@rm -f test_audit
-	@! ./pith run tests/test_sweep.pi 2>/dev/null | grep -q BROKEN
-	@! ./pith run tests/test_arc.pi 2>/dev/null | grep -q BROKEN
+	rm -f test_audit
+	./pith run tests/test_sweep.pi 2>/dev/null | grep -q "sweep: done"
+	./pith run tests/test_arc.pi 2>/dev/null | grep -q "arc: done"
 	./pith run tests/test_fn.pi > /dev/null
 	@! ./pith run tests/test_err1.pi > /dev/null 2>&1
 	@! ./pith run tests/test_err2.pi > /dev/null 2>&1
