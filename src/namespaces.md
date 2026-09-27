@@ -45,8 +45,6 @@ base = root.os.identifyKernel        # base runtime, bypassing overrides
 | `os.isFreeBSD` | bool | `1` on FreeBSD, `0` elsewhere |
 | `os.isDarwin` | bool | `1` when the kernel is Darwin (macOS and other Darwin systems) |
 | `os.isMacOS` | bool | `1` only on Apple macOS |
-| `os.readFile(path)` | string | File content as an ARC string (or `""` on error) |
-| `os.writeFile(path, content)` | int | `1` on successful write, `0` on error |
 | `os.getEnv(name)` | string | Environment variable value (or `""` if unset) |
 | `os.exit(code)` | void | Immediately terminates the process with exit code |
 | `os.argCount` | int | Total number of CLI arguments passed to the script |
@@ -71,6 +69,28 @@ if os.isMacOS
     print "apple macos"
 end
 ```
+
+## The builtin `fs` namespace
+
+The `fs` namespace provides simple, built-in filesystem operations. Like `os`, it is always available without an import, mapped directly to the base runtime implementation `root.fs.*`:
+
+```pith
+# Write to a file (returns 1 on success)
+fs.writeFile("hello.txt", "Hello from Pith!")
+
+# Read from a file (returns file content or "" on error)
+content = fs.readFile("hello.txt")
+print content
+```
+
+### Members
+
+| Member | Type | Returns |
+|---|---|---|
+| `fs.readFile(path)` | string | File content as a string (or `""` on error) |
+| `fs.writeFile(path, content)` | int | `1` on successful write, `0` on error |
+
+Following Pith's namespace standard (`devName.namespace.function`), `root.fs.*` represents the builtin implementation, `fs.*` represents the active merged view, and custom modules (e.g. `alice.fs.*`) can provide extensions or overrides.
 
 ## The builtin `net` namespace
 
