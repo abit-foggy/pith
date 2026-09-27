@@ -29,7 +29,7 @@
 #define TokenType Win_TokenType
 #include <windows.h>
 #undef TokenType
-#ifndef TokenElevation
+#ifdef __TINYC__
 #define TokenElevation ((TOKEN_INFORMATION_CLASS)20)
 typedef struct _TOKEN_ELEVATION {
     DWORD TokenIsElevated;
