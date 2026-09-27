@@ -71,7 +71,28 @@ val isNT: int        # 1 on Windows NT, 0 otherwise
 val isFreeBSD: int   # 1 on FreeBSD kernels, 0 otherwise
 ```
 
-### Process & Environment Functions
+---
+
+## Namespace: `proc`
+
+The `proc` namespace provides process control, command-line arguments, environment variable inspection, and process lifecycle primitives.
+
+### Properties
+
+```pith
+val pid: int
+```
+Returns the unique process identifier of the current calling process.
+- **Underlying Syscalls**:
+  - POSIX: `getpid(2)`.
+  - Windows: `GetCurrentProcessId()`.
+
+```pith
+val argCount: int
+```
+Returns the number of command-line arguments passed to the script (equivalent to `argc - 1` from the interpreter, or full `argc` for standalone compiled binaries). Can also be invoked as a function `proc.argCount()`.
+
+### Functions
 
 ```pith
 fn getEnv(name: string) string
@@ -87,21 +108,6 @@ Queries the environment list for the key `name`.
   - Windows: `GetEnvironmentVariableA`.
 
 ```pith
-fn exit(code: int) void
-```
-
-Immediately terminates the calling process with status `code`.
-
-- **Underlying Syscalls**:
-  - Invokes C `exit(code)` / `_exit(2)`. Buffered file streams are flushed.
-
-```pith
-fn argCount() int
-```
-
-Returns the number of command-line arguments passed to the script (equivalent to `argc - 1` from the interpreter, or full `argc` for standalone compiled binaries).
-
-```pith
 fn getArg(index: int) string
 ```
 
@@ -110,6 +116,15 @@ Returns the argument at 0-based `index`.
 - **Return value**:
   - String argument value.
   - Returns an empty string `""` if `index < 0` or `index >= argCount()`.
+
+```pith
+fn exit(code: int) void
+```
+
+Immediately terminates the calling process with status `code`.
+
+- **Underlying Syscalls**:
+  - Invokes C `exit(code)` / `_exit(2)`. Buffered file streams are flushed.
 
 ---
 

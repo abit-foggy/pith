@@ -4,7 +4,8 @@ Pith comes packed with powerful built-in tools right out of the box. You don't h
 
 These built-in tools are organized into **namespaces**:
 - **`fs`**: Read, write, and manage files
-- **`os`**: Check system details, read environment variables, and get command-line arguments
+- **`os`**: Check system details and platform kernels
+- **`proc`**: Control processes, read CLI arguments, environment variables, and process ID
 - **`net`**: Send and receive data over TCP networks
 
 ---
@@ -62,24 +63,6 @@ end
 print "Kernel: " + os.identifyKernel
 ```
 
-### Reading Command-Line Arguments & Environment
-You can read arguments passed into your script from the terminal:
-
-```pith
-# Check how many arguments were passed:
-count = os.argCount
-
-# Read the first argument (0 is the first argument after your script name):
-if count > 0
-    first_arg = os.getArg(0)
-    print "First argument: " + first_arg
-end
-
-# Read environment variables (e.g. USER, PATH, HOME):
-user = os.getEnv("USER")
-print "Current user: " + user
-```
-
 ### `os` Reference
 
 | Member | What it does | Returns |
@@ -91,14 +74,58 @@ print "Current user: " + user
 | `os.isNT` | Checks if running on Windows | `1` if true, `0` otherwise |
 | `os.isDarwin` | Checks if kernel is Darwin | `1` if true, `0` otherwise |
 | `os.isFreeBSD` | Checks if running on FreeBSD | `1` if true, `0` otherwise |
-| `os.getEnv(name)` | Gets an environment variable | String value (or `""` if unset) |
-| `os.argCount` | Total CLI arguments passed | Integer count |
-| `os.getArg(index)` | Gets argument at 0-based index | String argument |
-| `os.exit(code)` | Terminates program immediately | Exits with given status code |
 
 ---
 
-## 3. Network Tools: `net`
+## 3. Process Tools: `proc`
+
+The `proc` namespace controls the running process: checking command-line arguments, reading environment variables, querying the process ID, and exiting.
+
+### Reading Command-Line Arguments & Environment
+You can read arguments passed into your script from the terminal:
+
+```pith
+# Check how many arguments were passed:
+count = proc.argCount
+
+# Read the first argument (0 is the first argument after your script name):
+if count > 0
+    first_arg = proc.getArg(0)
+    print "First argument: " + first_arg
+end
+
+# Read environment variables (e.g. USER, PATH, HOME):
+user = proc.getEnv("USER")
+print "Current user: " + user
+
+# Get the process ID:
+pid = proc.pid
+print "Running PID: " + pid
+```
+
+### Exiting a Program
+Use `proc.exit(code)` to terminate the program immediately with an exit status:
+
+```pith
+if count == 0
+    print "Error: missing required argument"
+    proc.exit(1)
+end
+```
+
+### `proc` Reference
+
+| Member | What it does | Returns |
+|---|---|---|
+| `proc.argCount` | Total CLI arguments passed | Integer count |
+| `proc.getArg(index)` | Gets argument at 0-based index | String argument |
+| `proc.getEnv(name)` | Gets an environment variable | String value (or `""` if unset) |
+| `proc.pid` | Process ID of current process | Integer PID |
+| `proc.exit(code)` | Terminates program immediately | Exits with given status code |
+
+---
+
+## 4. Network Tools: `net`
 
 Need to talk to a web server or create a TCP connection? Pith includes dead-simple networking:
 
