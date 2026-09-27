@@ -592,14 +592,6 @@ int pith_net_member_exists(const char *name)
 
 static ExprResult gen_expr(Codegen *g, ASTNode *n);
 
-static const PithImportUnit *find_import(Codegen *g, const char *ns)
-{
-    for (size_t i = 0; i < g->nimports; i++)
-        if (strcmp(g->imports[i].ns, ns) == 0)
-            return &g->imports[i];
-    return NULL;
-}
-
 static const PithForeignFn *find_foreign_fn(const PithImportUnit *u,
                                             const char *name)
 {
