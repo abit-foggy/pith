@@ -4,8 +4,8 @@
 
 # Getting Started
 - [Installation](getting-started/installation.md)
-- [Your First Script](getting-started/first-script.md)
-- [Setting Up a Project](getting-started/project-setup.md)
+- [Your First Script (Tutorial)](getting-started/first-script.md)
+- [Organizing a Project](getting-started/project-setup.md)
 
 # Language Reference
 - [Overview & Syntax](language/index.md)
@@ -16,9 +16,9 @@
 - [Functions](language/functions.md)
 - [Error Guide](language/diagnostics.md)
 
-# Built-in Tools & Runtime
-- [System & Network Tools](namespaces.md)
-- [Memory & Cleanup](runtime.md)
+# Built-in Tools & Performance
+- [Built-in Tools (fs, os, net)](namespaces.md)
+- [Memory & Performance](runtime.md)
 
 # CLI & Tooling
 - [pith run](cli/run.md)

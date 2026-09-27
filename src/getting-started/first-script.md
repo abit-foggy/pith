@@ -1,151 +1,160 @@
-# Your First Script
+# Tutorial: Your First Script
 
-## Write it
+Welcome to Pith! In this tutorial, you'll write your very first program, learn the basic building blocks, and turn your script into a real standalone application that runs at native speed.
 
-Create a file called `hello.pi`:
+It takes less than 5 minutes, so let's jump right in!
+
+---
+
+## Step 1: Hello, World!
+
+First, create a new file named `hello.pi` in your favorite text editor.
+
+Add this single line of code to it:
 
 ```pith
 # hello.pi
-name = "pith"
-if name == "pith"
-    print "hello, " + name + "!"
-end
+print "Hello from Pith!"
 ```
 
-Pith is bracketless: blocks open with `if`/`fn` and close with a
-single `end`. No semicolons, no colons after conditions. Statements
-are newline-delimited.
+### Running Your Script
 
-## Variables and types
-
-Variables are **immutable by default**. Use `mut` for reassignment:
-
-```pith
-x = 10          # immutable
-mut y = 20      # mutable
-y = y + 5       # ok
-```
-
-Assign explicit sized types with `name : type = expr`:
-
-```pith
-mut byte: u8 = 255
-byte = byte + 1
-if byte == 0
-    print "wrapped!"
-end
-```
-
-See the [Language Reference](../language/index.md) for all types and wrapping
-semantics.
-
-## Run it
+Open your terminal in the same folder and type:
 
 ```sh
 pith run hello.pi
 ```
 
-```
-hello, pith!
+You will see:
+```text
+Hello from Pith!
 ```
 
-This takes the instant pipeline: lex → parse → QBE IR → `qbe` →
-assembly → **libtcc in-memory** → executed natively. No temp
-executable, no heavyweight compiler driver.
+Congratulations! You just ran your first Pith program. Notice how instantaneous it was? `pith run` compiles and executes your code directly into memory in milliseconds.
 
-## Build a standalone binary
+---
+
+## Step 2: Adding a Variable
+
+Let's make our program a little more personal. Instead of hardcoding the message, let's store a name in a variable:
+
+```pith
+# hello.pi
+name = "Alex"
+print "Hello, " + name + "!"
+```
+
+Run it again:
+```sh
+pith run hello.pi
+```
+
+Output:
+```text
+Hello, Alex!
+```
+
+### Clean Syntax
+Look closely at what we wrote:
+- No semicolons `;` at the end of lines
+- No parentheses required around `print`
+- Just clean, natural code
+
+---
+
+## Step 3: Making Decisions with `if`
+
+Now let's teach our script how to make choices. We'll check if the player's score is high enough to win:
+
+```pith
+# hello.pi
+player = "Alex"
+score = 100
+
+print "Welcome, " + player + "!"
+
+if score >= 100
+    print "You win the game!"
+else
+    print "Keep playing!"
+end
+```
+
+Run it:
+```sh
+pith run hello.pi
+```
+
+Output:
+```text
+Welcome, Alex!
+You win the game!
+```
+
+In Pith, code blocks don't need curly braces `{}` or indentation rules. You open an `if` block, write your code, and close it with a single `end`.
+
+---
+
+## Step 4: Making Numbers Change with `while` and `mut`
+
+Now let's add a loop that counts down from 3 before starting:
+
+```pith
+# hello.pi
+mut count = 3
+
+while count > 0
+    print "Starting in: " + count
+    count = count - 1
+end
+
+print "Go!"
+```
+
+Notice the word `mut` in front of `count`? By default, Pith prevents variables from changing so you don't accidentally introduce bugs. Adding `mut` (short for *mutable*) tells Pith: *"I want this variable to change as the program runs!"*
+
+Run the script:
+```sh
+pith run hello.pi
+```
+
+Output:
+```text
+Starting in: 3
+Starting in: 2
+Starting in: 1
+Go!
+```
+
+---
+
+## Step 5: Build a Standalone Executable
+
+Here is where Pith really shines. With other beginner-friendly languages, you need a heavy runtime, virtual machine, or interpreter installed on every computer that runs your script.
+
+With Pith, you can compile your script into a **single, standalone binary file** with one command:
 
 ```sh
 pith build hello.pi
+```
+
+Pith builds a standalone executable named `hello`. Now run it directly from your terminal:
+
+```sh
 ./hello
 ```
 
-The output is a fully standalone native executable linked with the
-embedded tcc linker. No VM, no interpreter, no runtime dependency
-beyond libc.
+You can take this `hello` file and run it on another computer without needing to install Pith at all! It runs directly on the processor with maximum speed and minimum memory usage.
 
-## See what the compiler produced
+---
 
-```sh
-pith decompile hello.pi
-```
+## What's Next?
 
-```qbe
-data $str.1 = { w 1, h 3, h 1, w 6, w 5, b "pith", b 0 }
+You now know how to write scripts, store variables, make decisions, repeat actions, and build standalone apps.
 
-export function w $main() {
-@main.start
-    %.v1_name =l alloc8 8
-    storel $str.1, %.v1_name
-    %.t1 =l loadl %.v1_name
-    %.t2 =w call $pith_str_equals(l %.t1, l $str.1)
-    jnz %.t2, @L2, @L3
-@L2
-    %.t3 =l call $pith_str_concat(l $str.2, l %.v1_name)
-    %.t4 =l call $pith_str_concat(l %.t3, l $str.3)
-    call $pith_rt_print(l %.t4)
-    call $pith_release(l %.t4)
-    call $pith_release(l %.t3)
-    jmp @L1
-@L3
-@L1
-@main.exit
-    ret 0
-}
-```
+Here are great places to explore next:
 
-Notice:
-- `alloc8 8` — every variable lives in its own stack slot (sized
-  types use `alloc4` for 1-4 byte storage)
-- `call $pith_str_concat` — string `+` lowered to a runtime call
-- `call $pith_release` — deterministic ARC at the scope boundary
-
-## Import C code
-
-Create a small C module:
-
-```c
-/* ffi/math.c */
-#include <pith.h>
-
-int addInts(int a, int b)
-{
-    return a + b;
-}
-
-double scale(double x, double k)
-{
-    return x * k;
-}
-```
-
-Use it from pith:
-
-```pith
-import "ffi/math.c"
-
-sum = math.addInts(3, 4)
-if sum == 7
-    print "ints: ok"
-end
-
-scaled = math.scale(1.5, 2.0)
-if scaled == 3.0
-    print "doubles: ok"
-end
-```
-
-Run it, both the JIT and AOT paths support imports:
-
-```sh
-pith run script.pi
-pith build script.pi && ./script
-```
-
-See [C Imports (FFI)](../ffi.md) for the full ABI contract and type mapping.
-
-## Next steps
-
-- [Setting Up a Project](project-setup.md) — pith.toml, multi-file builds, tasks
-- [Language Reference](../language/index.md) — complete syntax, types, and mutability
-- [CLI Reference](../cli/run.md) — every command in detail
+- **[Variables & Mutability](../language/variables.md)** — Learn how variables and `mut` work in depth
+- **[Functions](../language/functions.md)** — Break your code into reusable actions
+- **[Working with Files & Network](../namespaces.md)** — Read files, save data, and connect to servers
+- **[Setting Up a Project](project-setup.md)** — Organize larger projects with multiple files

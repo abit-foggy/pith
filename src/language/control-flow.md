@@ -1,118 +1,155 @@
-# If Statements & Loops
+# Tutorial: Decisions & Loops
 
-Control flow lets your program make choices and repeat actions.
+Programs become truly powerful when they can make choices on their own and repeat actions automatically. 
+
+In this tutorial, you'll learn how to guide your code using `if` statements and repeat work using `while` loops.
 
 ---
 
-## Making Decisions with `if`
+## Step 1: Making Decisions with `if`
 
-An `if` statement runs code only when a condition is met. The block finishes with `end`:
+An `if` statement tells your computer: *"Only run this code if a specific condition is true."*
+
+Let's test if a player has reached a winning score:
 
 ```pith
 score = 100
 
 if score >= 100
-    print "You win!"
+    print "Congratulations, you won!"
 end
 ```
 
-### Adding `else` and `elseif`
+Notice how clean the syntax is:
+- No parentheses `()` required around `score >= 100`
+- No colon `:` at the end of the line
+- Just write your code, and close it with `end`
 
-You can handle other cases with `elseif` and a fallback `else`:
+---
+
+## Step 2: Handling Alternatives with `else` and `elseif`
+
+What if the condition isn't met? You can provide a fallback response with `else`:
 
 ```pith
-score = 75
+score = 45
+
+if score >= 50
+    print "You passed the test!"
+else
+    print "Keep practicing, you can do it!"
+end
+```
+
+If you have multiple options to check (like assigning grades), chain them together using `elseif`:
+
+```pith
+score = 85
 
 if score >= 90
     print "Grade: A"
-elseif score >= 70
+elseif score >= 80
     print "Grade: B"
-elseif score >= 50
+elseif score >= 70
     print "Grade: C"
 else
-    print "Need to study more!"
+    print "Grade: Needs improvement"
 end
 ```
 
-Notice:
-- No parentheses `()` needed around the conditions.
-- No colons `:` at the end of the lines.
-- One single `end` closes the entire chain.
+Pith checks each condition in order from top to bottom. As soon as one matches, it runs that code and moves on!
 
 ---
 
-## Repeating Code with `while`
+## Step 3: Repeating Actions with `while`
 
-A `while` loop repeats a block of code as long as its condition stays true:
+What if you want to print a countdown or repeat an action 10 times? Instead of copying and pasting your code, use a `while` loop!
+
+A `while` loop keeps running as long as its condition stays true:
 
 ```pith
+# Remember: we use `mut` because `count` is going to change!
 mut count = 1
 
 while count <= 5
-    print "Count: " + count
+    print "Turn: " + count
     count = count + 1
 end
 
-print "Finished!"
+print "All turns completed!"
 ```
 
 Output:
 ```text
-Count: 1
-Count: 2
-Count: 3
-Count: 4
-Count: 5
-Finished!
+Turn: 1
+Turn: 2
+Turn: 3
+Turn: 4
+Turn: 5
+All turns completed!
 ```
 
 ---
 
-## Controlling Loops: `break` and `continue`
+## Step 4: Special Loop Controls (`break` and `continue`)
 
-You can control a loop from the inside:
+Sometimes you want to break out of a loop early, or skip one specific round. Pith gives you two simple commands:
 
-### 1. `break` (Stop the loop right now)
-Use `break` to exit a loop immediately:
+### 1. `break`: Stop the Loop Immediately
+Use `break` when you've found what you were looking for and don't need to keep searching:
 
 ```pith
-mut n = 1
-while n <= 10
-    if n == 4
-        print "Found 4! Stopping loop."
+mut number = 1
+
+while number <= 10
+    if number == 4
+        print "Found number 4! Stopping early."
         break
     end
-    print n
-    n = n + 1
-end
-```
-
-### 2. `continue` (Skip to the next step)
-Use `continue` to skip the rest of the current turn and jump straight to the next check:
-
-```pith
-mut n = 0
-while n < 5
-    n = n + 1
-    if n == 3
-        # Skip printing 3
-        continue
-    end
-    print n
+    print "Checking: " + number
+    number = number + 1
 end
 ```
 
 Output:
 ```text
-1
-2
-4
-5
+Checking: 1
+Checking: 2
+Checking: 3
+Found number 4! Stopping early.
 ```
+
+### 2. `continue`: Skip to the Next Round
+Use `continue` when you want to skip the rest of the current turn and jump straight to the next one:
+
+```pith
+mut number = 0
+
+while number < 5
+    number = number + 1
+    if number == 3
+        # Skip number 3!
+        continue
+    end
+    print "Processing item: " + number
+end
+```
+
+Output:
+```text
+Processing item: 1
+Processing item: 2
+Processing item: 4
+Processing item: 5
+```
+
+Notice that `Processing item: 3` was skipped completely!
 
 ---
 
-## See Also
+## Next Steps
 
-- [Math & Logic](expressions.md) — Checking conditions with `and`, `or`, and `not`
-- [Variables & Mutability](variables.md) — Using `mut` to update loop counters
+Now that you can guide your code's decisions and repeat actions:
+
+- **[Functions](functions.md)** — Learn how to bundle your code into reusable actions
+- **[Math & Logic](expressions.md)** — Combine conditions with `and`, `or`, and `not`

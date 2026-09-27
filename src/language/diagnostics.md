@@ -17,14 +17,14 @@ Here are the most common errors and how to solve them:
 ## 1. Changing a Variable Without `mut`
 
 ```text
-error: cannot assign twice to immutable variable `x` (declare with `mut` to reassign)
+error: cannot assign twice to immutable variable `score` (declare with `mut` to reassign)
 ```
 
-- **What it means**: You created `x = 10` and later tried to change it to `x = 20`.
+- **What it means**: You created `score = 10` and later tried to change it to `score = 20`.
 - **How to fix it**: Add `mut` when you first create the variable:
   ```pith
-  mut x = 10
-  x = 20    # Works!
+  mut score = 10
+  score = 20    # Works!
   ```
 
 ---

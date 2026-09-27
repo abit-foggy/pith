@@ -1,129 +1,55 @@
-# Runtime & Memory Model
+# Memory & Performance
 
-Pith uses **deterministic Automated Reference Counting** (ARC), zero
-tracing garbage collectors, zero safepoint stops, zero hidden
-runtime bloat.
+One of Pith's best features is that **you never have to manage memory yourself**. 
 
-## PithValue
+In some languages (like C), you have to manually allocate and free memory, which is easy to mess up. In other languages (like Python or Java), a heavy "garbage collector" runs in the background, which can cause sudden stuttering and slowdowns.
 
-Every pith value carries an inline 32-bit atomic reference count and
-a type discriminator. The canonical definition lives in
-`include/pith.h`:
+Pith gives you the best of both worlds: **automatic cleanup with zero stuttering and maximum speed.**
 
-```c
-typedef struct PithValue PithValue;
-struct PithValue {
-    volatile uint32_t strongRefs;  /* inline 32-bit reference count */
-    uint16_t typeTag;              /* type discriminator            */
-    uint16_t flags;                /* PITH_FLAG_* bits              */
-    uint32_t capacity;             /* payload bytes allocated       */
-    uint32_t length;               /* payload bytes in use          */
-    char data[];                   /* payload (strings)             */
-};
-```
+---
 
-- **32-bit atomic refcounts**, updated with C11 `<stdatomic.h>` when
-  available, GCC/Clang `__sync` builtins otherwise. Thread-safe.
-- **Type discriminators**, `PITH_TAG_INT`, `PITH_TAG_FLOAT`,
-  `PITH_TAG_STRING`, `PITH_TAG_BOOL`, `PITH_TAG_OBJECT`.
-- **Flags**, `PITH_FLAG_STATIC` marks immortal static data (string
-  literals); `PITH_FLAG_SHARED` marks values involved in a broken
-  cycle.
+## How It Works (Without the Jargon)
 
-## Reference counting semantics
+When you create a variable or join two strings together, Pith saves it in memory. It keeps a small counter on that data called a *reference count*:
 
-| Event | Emitted instruction |
-|---|---|
-| Declaration (`name = "heap" + "-string"`) | `alloc8` + `storel` |
-| Declaration (sized: `name : u8 = 200`) | `alloc4` + `storeb` |
-| Declaration (sized: `name : f32 = 1.5`) | `alloc4` + `stores` |
-| Load (sized: `u8` variable) | `loadub` (zero-extend to 64-bit) |
-| Load (sized: `i8` variable) | `loadsb` (sign-extend to 64-bit) |
-| Load (sized: `f32` variable) | `loads` + `exts` (single → double) |
-| Store (sized: `u8` variable) | `storeb` (truncate to low byte) |
-| Store (sized: `f32` variable) | `truncd` + `stores` (double → single) |
-| Scope exit (`end`) | `loadl` + `call $pith_release` |
-| Reassignment (ARC value overwritten) | `loadl` + `call $pith_release` on the old value |
-| Borrow-to-own (`y = x` where `x` is ARC) | `call $pith_retain` on the new owner |
-| Foreign return (`PithValue*` from C) | ownership transfers to the variable (+1 from C) |
+1. **When you create or share data**, Pith notes that it's in use.
+2. **When your code finishes with that data** (like exiting an `if` block, a loop, or a function), Pith frees that memory immediately and automatically.
 
-The compiler emits these deterministically at every scope boundary,
-there is no runtime collector, no safepoint, no pause.
+There is no background collector sweeping through memory, no "stop-the-world" freeze, and no sluggish memory leaks. Everything happens right when your code finishes using it.
 
-## Static data
+---
 
-String literals compile to QBE `data` definitions carrying the
-`PithValue` header with `PITH_FLAG_STATIC` set:
+## Why This Matters for You
 
-```qbe
-data $str.1 = { w 1, h 3, h 1, w 6, w 5, b "linux", b 0 }
-```
+### 1. Perfect for Games & Audio
+In game development and audio processing, even a 10-millisecond pause can ruin the experience. Because Pith cleans up data continuously in real time, your animations and sounds stay buttery smooth.
 
-- `w 1`, refcount (irrelevant for statics)
-- `h 3`, typeTag = PITH_TAG_STRING
-- `h 1`, flags = PITH_FLAG_STATIC
-- `w 6`, capacity (length + NUL)
-- `w 5`, length
+### 2. Tiny Memory Footprint
+Pith programs only use the exact amount of memory they need at any given moment. They don't require hundreds of megabytes of RAM just to start up.
 
-`pithRetain` and `pithRelease` are **no-ops** on static-flagged values
- they are immortal and never freed.
+### 3. Native Machine Code
+When you run `pith build`, Pith produces a real binary tailored to your processor. It doesn't run inside an emulated virtual machine—it runs directly on the metal for top-tier speed.
 
-## Sized storage
+---
 
-Variables declared with explicit types (`name : u8 = 200`) get
-right-sized stack allocations:
+## Sized Types & Saving Space
 
-| Type | Allocation | Store instruction | Load instruction |
-|---|---|---|---|
-| `i8` / `u8` | `alloc4 4` | `storeb` | `loadsb` (sign-extend) / `loadub` (zero-extend) |
-| `i16` / `u16` | `alloc4 4` | `storeh` | `loadsh` / `loaduh` |
-| `i32` / `u32` | `alloc4 4` | `storew` | `loadsw` / `loaduw` |
-| `i64` / `u64` | `alloc8 8` | `storel` | `loadl` |
-| `f32` | `alloc4 4` | `truncd` + `stores` | `loads` + `exts` |
-| `f64` | `alloc8 8` | `stored` | `loadd` |
-
-Arithmetic always happens at 64-bit: values are widened to full
-registers when loaded, and truncated back to the storage width when
-stored. Wrapping falls out naturally:
+If you are working with large sets of numbers (like image pixels, sound waves, or 3D coordinates), you can tell Pith the exact size of your variables:
 
 ```pith
-mut b: u8 = 255
-b = b + 1        # stored as 0x00 via storeb; loads as 0
+# Use u8 (0 to 255) for RGB color channels to use only 1 byte per value:
+mut red: u8 = 255
+mut green: u8 = 120
+mut blue: u8 = 0
 ```
 
-## Cycle mitigation
+By choosing the right size, you can make your programs use a fraction of the memory of other scripting languages while running even faster.
 
-`pith_break_cycle(parent, child)` drops the parent's strong reference
-to the child cleanly, prior to scope exit:
+---
 
-```c
-void pith_break_cycle(void *parent, void *child);
-```
+## Summary
 
-The caller zeroes the back-reference slot in the parent's payload
-first, then hands the pair here. The runtime drops the reference and
-flags the child `PITH_FLAG_SHARED` for diagnostics.
-
-## Runtime primitives
-
-From `include/api.h`:
-
-| Function | Description |
-|---|---|
-| `pith_str_new(initial, len)` | Allocate a string value (+1 ref) |
-| `pith_str_concat(a, b)` | New concatenated string (+1 ref) |
-| `pith_str_equals(a, b)` | Content equality (returns 0/1) |
-| `pith_retain(ptr)` | Atomically bump the refcount |
-| `pith_release(ptr)` | Atomically drop a ref; frees at zero |
-| `pith_break_cycle(parent, child)` | Explicit cycle break |
-| `pith_rt_os_kernel()` | Platform string ("linux", "nt", etc.) |
-| `pith_rt_os_kernel_version()` | Kernel/OS version string |
-| `pith_rt_is_nt()` | 1 on Windows NT, 0 elsewhere |
-| `pith_rt_print(str)` | Print a string value to stdout |
-
-## Thread safety
-
-Reference counts are updated atomically (32-bit). Shared values are
-safe to retain/release from multiple threads. The compiler-injected
-releases remain deterministic, they always happen at scope
-boundaries in the owning thread.
+You don't need to be a systems engineer to build high-performance software. With Pith:
+- You never write `malloc` or `free`
+- You never experience garbage collector pauses
+- Your programs start instantly and run at native speed

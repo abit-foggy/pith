@@ -1,175 +1,147 @@
-# Setting Up a Project
+# Tutorial: Organizing a Project
 
-## Directory layout
+When your program grows beyond a single file, Pith makes it easy to organize your code into a clean, professional project with dependencies and automated tasks.
 
-A typical pith project:
+In this tutorial, you'll learn how a Pith project is structured, how to split code into multiple files, and how to use `pith.toml`.
 
+---
+
+## Step 1: Project Structure
+
+Here is what a complete Pith project typically looks like:
+
+```text
+my_game/
+├── pith.toml        # Project settings and tasks
+├── main.pi          # Your main starting file
+├── helpers.pi       # Extra helper functions
+└── dist/            # Where built apps go (optional)
 ```
-myproject/
-├── pith.toml            # project configuration
-├── pith.lock            # resolved dependency hashes (generated)
-├── main.pi              # entry point
-├── utils.pi             # additional translation units
-├── ffi/
-│   └── math.c           # native C imports
-└── .pith/
-    └── pkgs/            # locally installed packages (generated)
-```
 
-## pith.toml
+You don't need complicated build systems or endless configuration files—just a folder, your `.pi` scripts, and an optional `pith.toml`.
 
-The project manifest. Create one with:
+---
+
+## Step 2: Creating `pith.toml`
+
+The `pith.toml` file stores basic information about your project and custom commands you want to run.
+
+Create a file named `pith.toml` in your project folder:
 
 ```toml
 [project]
-name = "myproject"
+name = "my_game"
 version = "0.1.0"
 
 [build]
 target = "native"
-linker = "auto"
-engine = "auto"
 
-[toolchain]
-pithVersion = "0.1.0"
-
-[dependencies]
-# os-utils = "1.0.0"
-# mylib = "./path/to/lib"
-
-[tasks.build]
-run = "pith run main.pi"
-```
-
-See the [Configuration](../config.md) page for every table and key.
-
-## Multi-file builds
-
-Pass multiple translation units, they're concatenated into a single
-`.ssa` module (WPSSAC):
-
-```sh
-pith run main.pi utils.pi
-pith build main.pi utils.pi
-```
-
-All units share the one exported `$main` entry point. Private
-functions stay private; unreferenced ones are eliminated for
-zero-bloat output.
-
-## Custom tasks
-
-Define recipes in `pith.toml` under `[tasks]`:
-
-```toml
-[tasks.build]
+[tasks.start]
 run = "pith run main.pi"
 
 [tasks.test]
-all = "pith run tests/all.pi"
-
-[tasks.deploy]
-prod = "pith build main.pi -o dist/app --embed-source"
+all = "pith run tests/test_game.pi"
 ```
 
-Then run them:
+---
+
+## Step 3: Splitting Code Across Multiple Files
+
+As your app grows, you can divide your code into separate files to keep everything tidy.
+
+For example, create `helpers.pi` with a helper function:
+
+```pith
+# helpers.pi
+fn show_banner(title)
+    print "===================="
+    print "   " + title
+    print "===================="
+end
+```
+
+Then create your main program in `main.pi`:
+
+```pith
+# main.pi
+show_banner("MY AWESOME GAME")
+print "Ready to play!"
+```
+
+To run both files together, simply pass them to `pith run`:
 
 ```sh
-pith build          # executes tasks.build.run
-pith test all       # executes tasks.test.all
-pith deploy prod    # executes tasks.deploy.prod
+pith run main.pi helpers.pi
 ```
 
-Unknown verbs dispatch through `[tasks]`, the rest are built-in
-commands. See [Custom Tasks](../cli/tasks.md).
+Output:
+```text
+====================
+   MY AWESOME GAME
+====================
+Ready to play!
+```
 
-## Dependencies
+To build a standalone executable from all files together:
 
-Add a dependency:
+```sh
+pith build main.pi helpers.pi -o my_game
+./my_game
+```
+
+Pith automatically combines them into a single, lightning-fast native executable.
+
+---
+
+## Step 4: Running Custom Shortcut Tasks
+
+Remember the `[tasks]` we added to `pith.toml`? You can run them anytime as shortcuts:
+
+```sh
+# Runs "pith run main.pi" automatically
+pith start
+
+# Runs your test suite
+pith test all
+```
+
+This saves you from typing long terminal commands over and over.
+
+---
+
+## Step 5: Adding Packages with `pith pkg`
+
+If you want to use a library written by another developer, install it with one command:
 
 ```sh
 pith pkg add os-utils 1.0.0
 ```
 
-This appends to `pith.toml` and runs `sync`, the package is
-installed into `<project>/.pith/pkgs/os-utils@1.0.0/` and recorded in
-`pith.lock` with an FNV-1a integrity hash.
+Pith downloads the package and saves it locally in `.pith/pkgs/`. You can immediately use it in your code!
 
-See [pith pkg](../cli/pkg.md) for all scopes (local, user, machine).
+---
 
-## Embed the workspace into a binary
+## Step 6: Built-in Time Machine (`--embed-source`)
 
-Attach your source code to the built executable for later recovery:
+Have you ever lost the source code to an executable you built months ago? Pith has a built-in superpower:
 
 ```sh
-pith build main.pi --embed-source -o app
+pith build main.pi helpers.pi --embed-source -o my_game
 ```
 
-The project's `pith.toml` and all `.pi` files are appended as a tar
-overlay at the end of the binary, followed by a 16-byte `PITHDEBG`
-footer. Anyone with the binary can recover the source:
+When you add `--embed-source`, Pith safely packs your project files directly inside the executable. Anyone with the binary can recover the original source code:
 
 ```sh
-pith decompile ./app
-# restored workspace successfully extracted to ./restored_workspace/
+pith decompile ./my_game
 ```
 
-See [pith decompile](../cli/decompile.md) and [pith build](../cli/build.md).
+Your files are cleanly restored to `./restored_workspace/`. It's like having source code version recovery baked right into your binary!
 
-## Plugins (.ppkg)
+---
 
-Build the project as an installable plugin: set
-`[toolchain].pithPlugin = "yes"` (or pass `--plugin`), give the
-project an author, and build:
+## Next Steps
 
-```toml
-[project]
-name = "myos"
-author = "alice"
+Now that your project is organized:
 
-[toolchain]
-pithPlugin = "yes"
-```
-
-```sh
-pith build myos.pi --plugin -o myplugin
-# built plugin myplugin.ppkg (2 exported fns)
-```
-
-The `.ppkg` is a bundle: `plugin.o` (the compiled object with
-exported `c_<author>_<module>_<fn>` symbols) and `manifest` (the
-symbol table). Install it into another project:
-
-```sh
-cd ../consumer
-pith pkg add myplugin 1.0.0        # or a path in pith.toml
-```
-
-And call its functions:
-
-```pith
-if alice.myos.identifyKernel == 42
-    print "plugin works"
-end
-```
-
-See [pith build](../cli/build.md) and [pith pkg](../cli/pkg.md).
-
-## Toolchain pinning
-
-Pin a project to a specific compiler version:
-
-```toml
-[toolchain]
-pithVersion = "0.1.0"
-```
-
-When the pinned version differs from the running binary, invocations
-forward to `~/.pith/toolchains/0.1.0/bin/pith` via `execv`. Install
-the toolchain locally first:
-
-```sh
-pith engine install 0.1.0
-```
-
-See [pith engine](../cli/engine.md).
+- **[Built-in Tools](../namespaces.md)** — Read and write files (`fs`), inspect the computer (`os`), and connect to sockets (`net`)
+- **[Interactive REPL](../cli/repl.md)** — Try out Pith commands live in your terminal

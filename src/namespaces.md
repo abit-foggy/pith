@@ -1,221 +1,142 @@
-# Namespaces
+# Built-in Tools (Namespaces)
 
-Namespaces are fixed roots that expose related functions through
-dotted member access: `os.identifyKernel`, `math.addInts`. A
-namespace member used alone is a value; with `(args)` it is a call.
+Pith comes packed with powerful built-in tools right out of the box. You don't have to install heavy third-party packages or write dozens of lines of boilerplate just to read a file, check the operating system, or connect over a network.
 
-Pith namespaces are organized in a **scope hierarchy**:
+These built-in tools are organized into **namespaces**:
+- **`fs`** — Read, write, and manage files
+- **`os`** — Check system details, read environment variables, and get command-line arguments
+- **`net`** — Send and receive data over TCP networks
 
-1. **The root scope** (`root.os.*`), the base runtime implementation
-2. **The merged module view** (`os.*`), the builtin plus active
-   import overrides
-3. **Developer scopes** (`alice.os.*`), an imported author's module
+---
 
-## The scope hierarchy
+## 1. Filesystem Tools: `fs`
 
-```
-root.os.identifyKernel     <- base runtime (no overrides, ever)
-os.identifyKernel          <- merged view (overrides apply)
-alice.os.identifyKernel    <- alice's import (direct)
-```
+Reading and writing files in Pith takes just one line of code:
 
-## The builtin `os` namespace
-
-The `os` namespace exposes platform identification. It is always
-available, no import needed, through BOTH the unadorned namespace and
-the explicit root scope:
+### Writing to a File
+Use `fs.writeFile(path, content)`. It returns `1` if the write succeeded, or `0` if there was an error:
 
 ```pith
-if os.isLinux
-    print "running on linux"
-end
+success = fs.writeFile("notes.txt", "Pith makes coding fun!")
 
-kernel = os.identifyKernel           # merged view
-base = root.os.identifyKernel        # base runtime, bypassing overrides
-```
-
-### Members
-
-| Member | Type | Returns |
-|---|---|---|
-| `os.identifyKernel` | string | `"linux"`, `"darwin"`, `"nt"`, `"freebsd"`, `"unknown"` |
-| `os.identifyKernelVersion` | string | Kernel/OS version string (uname.release on POSIX) |
-| `os.isNT` | bool | `1` on Windows NT, `0` elsewhere |
-| `os.isLinux` | bool | `1` on Linux, `0` elsewhere |
-| `os.isFreeBSD` | bool | `1` on FreeBSD, `0` elsewhere |
-| `os.isDarwin` | bool | `1` when the kernel is Darwin (macOS and other Darwin systems) |
-| `os.isMacOS` | bool | `1` only on Apple macOS |
-| `os.getEnv(name)` | string | Environment variable value (or `""` if unset) |
-| `os.exit(code)` | void | Immediately terminates the process with exit code |
-| `os.argCount` | int | Total number of CLI arguments passed to the script |
-| `os.getArg(index)` | string | Argument at 0-based index |
-
-### isDarwin vs isMacOS
-
-These are slightly different:
-
-- **`os.isDarwin`** is a *kernel-level* check: TRUE whenever the
-  kernel reports "Darwin" (via uname). This includes Apple macOS AND
-  non-Apple Darwin systems.
-- **`os.isMacOS`** is an *Apple-specific* check: TRUE only on Apple's
-  macOS (detected via the Apple toolchain's `__APPLE__` + `__MACH__`
-  defines).
-
-```pith
-if os.isDarwin
-    print "darwin kernel"
-end
-if os.isMacOS
-    print "apple macos"
+if success
+    print "File saved successfully!"
+else
+    print "Could not write to file."
 end
 ```
 
-## The builtin `fs` namespace
-
-The `fs` namespace provides simple, built-in filesystem operations. Like `os`, it is always available without an import, mapped directly to the base runtime implementation `root.fs.*`:
+### Reading from a File
+Use `fs.readFile(path)`. It returns the text inside the file as a string (or an empty string `""` if the file could not be read):
 
 ```pith
-# Write to a file (returns 1 on success)
-fs.writeFile("hello.txt", "Hello from Pith!")
-
-# Read from a file (returns file content or "" on error)
-content = fs.readFile("hello.txt")
+content = fs.readFile("notes.txt")
+print "File contents:"
 print content
 ```
 
-### Members
+### `fs` Reference
 
-| Member | Type | Returns |
+| Function | What it does | Returns |
 |---|---|---|
-| `fs.readFile(path)` | string | File content as a string (or `""` on error) |
-| `fs.writeFile(path, content)` | int | `1` on successful write, `0` on error |
+| `fs.readFile(path)` | Reads an entire file | File contents as text (or `""` on error) |
+| `fs.writeFile(path, content)` | Writes text into a file | `1` on success, `0` on error |
 
-Following Pith's namespace standard (`devName.namespace.function`), `root.fs.*` represents the builtin implementation, `fs.*` represents the active merged view, and custom modules (e.g. `alice.fs.*`) can provide extensions or overrides.
+---
 
-## The builtin `net` namespace
+## 2. Operating System Tools: `os`
 
-The `net` namespace exposes dead-simple TCP networking primitives. Like `os`, it is always available without an import, mapped directly to the base runtime implementation `root.net.*`:
+The `os` namespace lets your program ask questions about the computer it's running on:
 
 ```pith
-fd = net.connect("127.0.0.1", 8080)
+# Check the platform
+if os.isLinux
+    print "Running on Linux!"
+elseif os.isMacOS
+    print "Running on macOS!"
+elseif os.isNT
+    print "Running on Windows!"
+end
+
+# Get the exact kernel name
+print "Kernel: " + os.identifyKernel
+```
+
+### Reading Command-Line Arguments & Environment
+You can read arguments passed into your script from the terminal:
+
+```pith
+# Check how many arguments were passed:
+count = os.argCount
+
+# Read the first argument (0 is the first argument after your script name):
+if count > 0
+    first_arg = os.getArg(0)
+    print "First argument: " + first_arg
+end
+
+# Read environment variables (e.g. USER, PATH, HOME):
+user = os.getEnv("USER")
+print "Current user: " + user
+```
+
+### `os` Reference
+
+| Member | What it does | Returns |
+|---|---|---|
+| `os.identifyKernel` | Operating system kernel | `"linux"`, `"darwin"`, `"nt"`, `"freebsd"` |
+| `os.identifyKernelVersion` | Kernel release version string | e.g. `"6.5.0-generic"` |
+| `os.isLinux` | Checks if running on Linux | `1` if true, `0` otherwise |
+| `os.isMacOS` | Checks if running on Apple macOS | `1` if true, `0` otherwise |
+| `os.isNT` | Checks if running on Windows | `1` if true, `0` otherwise |
+| `os.isDarwin` | Checks if kernel is Darwin | `1` if true, `0` otherwise |
+| `os.isFreeBSD` | Checks if running on FreeBSD | `1` if true, `0` otherwise |
+| `os.getEnv(name)` | Gets an environment variable | String value (or `""` if unset) |
+| `os.argCount` | Total CLI arguments passed | Integer count |
+| `os.getArg(index)` | Gets argument at 0-based index | String argument |
+| `os.exit(code)` | Terminates program immediately | Exits with given status code |
+
+---
+
+## 3. Network Tools: `net`
+
+Need to talk to a web server or create a TCP connection? Pith includes dead-simple networking:
+
+```pith
+# Connect to a web server on port 80:
+fd = net.connect("example.com", 80)
+
 if fd >= 0
-    net.send(fd, "GET / HTTP/1.0\r\n\r\n")
+    # Send an HTTP request
+    net.send(fd, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n")
+
+    # Read the response (up to 4096 bytes)
     response = net.recv(fd, 4096)
     print response
+
+    # Close the connection when done
     net.close(fd)
 end
 ```
 
-### Members
+### `net` Reference
 
-| Member | Type | Returns |
+| Function | What it does | Returns |
 |---|---|---|
-| `net.socket()` | int | New TCP socket descriptor (or `-1` on error) |
-| `net.connect(host, port)` | int | Connected socket descriptor (or `-1` on error) |
-| `net.send(fd, message)` | int | Number of bytes sent (or `-1` on error) |
-| `net.recv(fd, maxBytes)` | string | Read data as an ARC string (empty on EOF/error) |
-| `net.close(fd)` | void | Closes the socket descriptor |
+| `net.connect(host, port)` | Connects to a TCP host and port | Socket ID (or `-1` on error) |
+| `net.send(fd, message)` | Sends text over the socket | Bytes sent (or `-1` on error) |
+| `net.recv(fd, maxBytes)` | Reads text from the socket | Received text (or `""` on EOF/error) |
+| `net.close(fd)` | Closes the connection | Nothing |
+| `net.socket(domain, type, proto)` | Creates a raw socket | Socket ID (or `-1` on error) |
 
-Following Pith's namespace standard (`devName.namespace.function`), `root.net.*` represents the builtin implementation, `net.*` represents the active merged view, and custom modules (e.g. `abit.net.*`) can provide extensions or overrides.
+---
 
-## Developer-scoped imports
+## 4. How Namespaces Work Under the Hood
 
-An `import "path.c"` statement creates a namespace from the path:
+Pith uses a simple, predictable hierarchy:
 
-- `import "os.c"` (no directory): a **root-level import**, its symbols
-  join the merged `os.*` view directly
-- `import "alice/os.c"` (with a directory): a **developer-scoped
-  import**, the directory is the author scope, accessible as
-  `alice.os.*`
+1. **`root.fs.*` / `root.os.*` / `root.net.*`**: The built-in runtime functions directly. They can never be overridden.
+2. **`fs.*` / `os.*` / `net.*`**: The active tools you use every day. If you import a module that enhances one of these, the enhancement applies here.
+3. **`alice.fs.*`**: If you import a custom package from another developer (like Alice), you can call their specific version directly by author name!
 
-```pith
-import "alice/os.c"
-
-alice.os.identifyKernel()     # alice's export, direct
-```
-
-Every non-static function the C file exports becomes a member of the
-author's module namespace.
-
-## Symbol overlay and override precedence
-
-Imports do NOT shadow a namespace entirely. Instead, each symbol
-merges into the module's namespace view:
-
-### Fallback / pass-through
-
-If the builtin exposes a member the import does not define, the
-unqualified lookup resolves cleanly to the base implementation:
-
-```pith
-import "alice/os.c"    # alice only overrides identifyKernel
-
-if os.isNT == 0        # os.isNT is NOT overridden: the builtin runs
-    print "builtin isNT"
-end
-```
-
-### Selective override
-
-If both the builtin and an imported author module define the same
-member, the imported author's symbol takes precedence in the
-unqualified lookup:
-
-```pith
-import "alice/os.c"    # alice overrides identifyKernel
-
-os.identifyKernel()    # -> alice.os.identifyKernel()
-```
-
-The compiler emits an informational note at import time:
-
-```
-note: alice.os.identifyKernel overrides os.identifyKernel
-```
-
-### Fully-qualified disambiguation
-
-- `alice.os.identifyKernel` always resolves directly to Alice's
-  export, bypassing all overrides
-- `root.os.identifyKernel` always resolves to the base runtime
-  implementation, bypassing all overrides
-
-```pith
-import "alice/os.c"
-
-if os.identifyKernel == "alice"           # override wins
-if root.os.identifyKernel == "linux"      # base runtime wins
-if alice.os.identifyKernel == "alice"     # alice direct
-```
-
-## Resolution order
-
-The compiler uses identical resolution logic for calls
-(`ns.member(...)`) and bare accesses (`ns.member`):
-
-1. **Fully-qualified path** (`author.module.symbol` or
-   `root.module.symbol`): direct layer lookup
-2. **Unqualified** (`module.symbol`): the overlay table (active
-   imports, newest first), then the root base table
-3. If unresolved in all layers: `unknown member or namespace` error
-
-| Access | Resolves to |
-|---|---|
-| `root.os.identifyKernel` | the base runtime, always |
-| `alice.os.identifyKernel` | alice's import, always |
-| `os.identifyKernel` (alice imported) | alice's (override) |
-| `os.identifyKernel` (no import) | the builtin |
-| `os.isNT` (alice imported) | the builtin (not overridden) |
-
-## Arity rules
-
-Strict arity validation across both bare and call lookups:
-
-- Bare access to a multi-parameter function: error
-  (`member 'os.add' expects 2 arguments; call it with (...)`)
-- Bare access to a zero-parameter member: called like a property
-- Calls: the argument count must match exactly
-
-## Memory Safety
-
-Strings returned by namespaces are managed automatically. You don't need to manually free or allocate memory when reading files, receiving network data, or checking the operating system.
+All strings, buffers, and data returned by built-in namespaces are automatically managed and cleaned up for you with zero performance overhead.
