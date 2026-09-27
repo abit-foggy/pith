@@ -19,7 +19,7 @@ runtime semantics.
 | `test_err2.pi` | [PARSER] | compile error (string + integer concatenation) |
 | embed/decompile roundtrip | [PACKAGE] | default build stripped of `PITHDEBG`; `--embed-source` attaches it; `pith decompile <bin>` restores `./restored_workspace/` |
 
-## DOMAIN 1 — ARC runtime & memory lifetimes
+## DOMAIN 1 - ARC runtime & memory lifetimes
 
 | Path | Category | Expected behavior |
 |---|---|---|
@@ -32,15 +32,15 @@ v0.1 has no loop or call syntax, so high-frequency churn and cycle
 semantics are driven from C harnesses against the same runtime the
 compiler emits calls into; scope-exit unwinding is covered in Pith
 (`arc_deep.pi`). Graph structures are not yet expressible in the
-language — `pith_break_cycle` is exercised at the ABI level.
+language - `pith_break_cycle` is exercised at the ABI level.
 
-## DOMAIN 2 — QBE codegen & calling conventions
+## DOMAIN 2 - QBE codegen & calling conventions
 
 | Path | Category | Expected behavior |
 |---|---|---|
 | `codegen_int64.pi` | [CODEGEN] | INT64_MAX+1 wraps to INT64_MIN, signed compares hold across the boundary, boundary round trips: exit 0, no BROKEN |
 | `codegen_branches.pi` | [CODEGEN] | empty then/elseif/else blocks, nested chains, dead code after `return` (diagnosed, not emitted): exit 0 |
-| `codegen_div0.pi` | [CODEGEN] | division by an opaque zero must die by deterministic SIGFPE (no hang, no wrong result) — verified by `harness/div0.c` |
+| `codegen_div0.pi` | [CODEGEN] | division by an opaque zero must die by deterministic SIGFPE (no hang, no wrong result) - verified by `harness/div0.c` |
 | `harness/div0.c` | [CODEGEN] | forks + execs `pith run codegen_div0.pi`, asserts the child died by exactly SIGFPE: exit 0 |
 | `ffi/math.c` + `test_ffi.pi` | [FFI] | every ABI class (w/l/s/d), string borrows, owned string returns (+1 ref), void calls with internal state, round trips: exit 0 on BOTH the JIT and AOT paths, zero leaks under ASan |
 
@@ -52,7 +52,7 @@ Adversarial findings documented here:
 - v0.1 has no structs, `&&`/`||`, or shifts; aggregate ABI and
   short-circuit tests land with the language features they target.
 
-## DOMAIN 3 — parser & lexer torture
+## DOMAIN 3 - parser & lexer torture
 
 | Path | Category | Expected behavior |
 |---|---|---|
@@ -65,7 +65,7 @@ Adversarial findings documented here:
 | `gen_deep_over.pi` (generated) | [PARSER] | 400 nested blocks: clean compile error, not a stack overflow |
 | `gen_deep_parens.pi` (generated) | [PARSER] | 200-deep parentheses: clean compile error from the 128 expression-depth guard |
 
-## DOMAIN 4 — tar, VFS & package isolation
+## DOMAIN 4 - tar, VFS & package isolation
 
 | Path | Category | Expected behavior |
 |---|---|---|

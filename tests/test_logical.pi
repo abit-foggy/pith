@@ -1,0 +1,113 @@
+# tests/test_logical.pi
+
+# 1. not operator
+if not 0
+    # ok
+else
+    print "BROKEN: not 0 should be truthy"
+end
+
+if not 1
+    print "BROKEN: not 1 should be falsy"
+end
+
+val = 42
+if not (val == 42)
+    print "BROKEN: not (val == 42) should be false"
+end
+
+if not (val == 99)
+    # ok
+else
+    print "BROKEN: not (val == 99) should be true"
+end
+
+# 2. and operator
+x = 5
+if x > 0 and x < 10
+    # ok
+else
+    print "BROKEN: 5 > 0 and 5 < 10 should be true"
+end
+
+if x > 0 and x > 10
+    print "BROKEN: 5 > 0 and 5 > 10 should be false"
+end
+
+# short circuit check: if left is 0, right is not evaluated
+# (if evaluated, dividing by zero would raise SIGFPE)
+mut safe_and = 0
+if 0 and (1 / 0)
+    print "BROKEN: and did not short circuit"
+else
+    safe_and = 1
+end
+
+if safe_and != 1
+    print "BROKEN: safe_and should be 1"
+end
+
+# 3. or operator
+y = 20
+if y == 20 or y == 30
+    # ok
+else
+    print "BROKEN: y == 20 or y == 30 should be true"
+end
+
+if y == 10 or y == 30
+    print "BROKEN: y == 10 or y == 30 should be false"
+end
+
+# short circuit check: if left is 1, right is not evaluated
+mut safe_or = 0
+if 1 or (1 / 0)
+    safe_or = 1
+else
+    print "BROKEN: or did not short circuit"
+end
+
+if safe_or != 1
+    print "BROKEN: safe_or should be 1"
+end
+
+# 4. continue in while loop
+mut count = 0
+mut skipped = 0
+mut evens = 0
+while count < 6
+    count = count + 1
+    if count == 3
+        skipped = skipped + 1
+        continue
+    end
+    evens = evens + 1
+end
+
+if count != 6
+    print "BROKEN: count should be 6"
+end
+
+if skipped != 1
+    print "BROKEN: skipped should be 1"
+end
+
+if evens != 5
+    print "BROKEN: evens should be 5"
+end
+
+# 5. continue with local ARC allocations
+mut c_iter = 0
+while c_iter < 5
+    scoped_str = "iter_" + "str"
+    c_iter = c_iter + 1
+    if c_iter < 4
+        continue
+    end
+end
+
+if c_iter != 5
+    print "BROKEN: c_iter should be 5"
+end
+
+print "logical: done"

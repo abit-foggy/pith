@@ -1,0 +1,73 @@
+# tests/test_while.pi
+
+# 1. basic while loop counting
+mut i = 0
+mut sum = 0
+while i <= 5
+    sum = sum + i
+    i = i + 1
+end
+
+if sum != 15
+    print "BROKEN: sum should be 15"
+end
+
+# 2. break out of while
+mut count = 0
+while 1
+    if count == 10
+        break
+    end
+    count = count + 1
+end
+
+if count != 10
+    print "BROKEN: count should be 10 after break"
+end
+
+# 3. nested while loops
+mut outer = 0
+mut inner_total = 0
+while outer < 3
+    mut inner = 0
+    while inner < 4
+        inner_total = inner_total + 1
+        inner = inner + 1
+    end
+    outer = outer + 1
+end
+
+if inner_total != 12
+    print "BROKEN: inner_total should be 12"
+end
+
+# 4. ARC string allocations inside while loop
+mut iter = 0
+mut last_str = ""
+while iter < 10
+    temp_str = "iteration_" + "step"
+    if iter == 9
+        last_str = temp_str
+    end
+    iter = iter + 1
+end
+
+if last_str != "iteration_step"
+    print "BROKEN: last_str should be iteration_step"
+end
+
+# 5. break with ARC allocations inside loop body
+mut b_iter = 0
+while 1
+    scoped_heap_str = "heap_value_" + "temp"
+    if b_iter == 5
+        break
+    end
+    b_iter = b_iter + 1
+end
+
+if b_iter != 5
+    print "BROKEN: b_iter should be 5"
+end
+
+print "while: done"

@@ -1,5 +1,5 @@
 /*
- * cffi.c — native C import pipeline for The Pith Programming Language.
+ * cffi.c - native C import pipeline for The Pith Programming Language.
  *
  * `import "*.c"` compiles a C translation unit into the running
  * program (JIT) or into the standalone artifact (AOT). This module
@@ -28,7 +28,7 @@
 
 const char *pith_cffi_header_text(void)
 {    return
-"/* pith.h — minimal C runtime header for imported Pith C modules.\n"
+"/* pith.h - minimal C runtime header for imported Pith C modules.\n"
 "   NOTE: pre-baked copy; keep in sync with include/pith.h. */\n"
 "#ifndef PITH_H\n"
 "#define PITH_H\n"

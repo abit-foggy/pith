@@ -1,5 +1,5 @@
 /*
- * main.c — CLI entrypoint for The Pith Programming Language.
+ * main.c - CLI entrypoint for The Pith Programming Language.
  *
  *   pith run <file.pi> [more.pi]     compile & execute via the instant
  *                                    pipeline (QBE IR -> assembly ->
@@ -27,6 +27,7 @@
 #include <sys/wait.h>
 
 #include "../include/compiler.h"
+#include "../include/api.h"
 
 #if defined(PITH_HAVE_LIBTCC) && !defined(__APPLE__)
 #include <libtcc.h>
@@ -334,26 +335,35 @@ static char *compile_frontend(const char **paths, size_t count,
                             imp->author[0] = '\0';
                         }
 
-                        /* informational: per-symbol overrides of the
-                           builtin os namespace */
-                        if (strcmp(imp->ns, "os") == 0) {
+                        /* informational: per-symbol overrides of builtin namespaces */
+                        int is_builtin_ns = (strcmp(imp->ns, "os") == 0 ||
+                                             strcmp(imp->ns, "fs") == 0 ||
+                                             strcmp(imp->ns, "net") == 0);
+                        if (is_builtin_ns) {
                             for (size_t f = 0; f < imp->nfn; f++) {
-                                if (!pith_os_member_exists(imp->fns[f].name))
+                                int exists = 0;
+                                if (strcmp(imp->ns, "os") == 0)
+                                    exists = pith_os_member_exists(imp->fns[f].name);
+                                else if (strcmp(imp->ns, "fs") == 0)
+                                    exists = pith_fs_member_exists(imp->fns[f].name);
+                                else if (strcmp(imp->ns, "net") == 0)
+                                    exists = pith_net_member_exists(imp->fns[f].name);
+                                if (!exists)
                                     continue;
                                 char msg[256];
                                 if (imp->author[0])
                                     snprintf(msg, sizeof(msg),
-                                             "%s.os.%s overrides "
-                                             "os.%s",
-                                             imp->author,
+                                             "%s.%s.%s overrides "
+                                             "%s.%s",
+                                             imp->author, imp->ns,
                                              imp->fns[f].name,
-                                             imp->fns[f].name);
+                                             imp->ns, imp->fns[f].name);
                                 else
                                     snprintf(msg, sizeof(msg),
-                                             "import os.%s overrides "
-                                             "os.%s",
-                                             imp->fns[f].name,
-                                             imp->fns[f].name);
+                                             "import %s.%s overrides "
+                                             "%s.%s",
+                                             imp->ns, imp->fns[f].name,
+                                             imp->ns, imp->fns[f].name);
                                 pith_emit_diagnostic("note", msg,
                                                      paths[u],
                                                      unit_sources[u],
@@ -363,12 +373,19 @@ static char *compile_frontend(const char **paths, size_t count,
                         }
                     }
 
-                    if (strcmp(imports[nimports - 1].ns, "os") == 0)
+                    if (strcmp(imports[nimports - 1].ns, "os") == 0 ||
+                        strcmp(imports[nimports - 1].ns, "fs") == 0 ||
+                        strcmp(imports[nimports - 1].ns, "net") == 0) {
+                        char msg[256];
+                        snprintf(msg, sizeof(msg),
+                                 "import `%s` shadows the builtin %s namespace",
+                                 imports[nimports - 1].ns,
+                                 imports[nimports - 1].ns);
                         pith_emit_diagnostic("warning",
-                                             "import `os` shadows the "
-                                             "builtin os namespace",
+                                             msg,
                                              paths[u], unit_sources[u],
                                              st->loc.line, st->loc.col, 2);
+                    }
                 }
             }
 
@@ -541,6 +558,155 @@ static int cmd_run(const char **paths, size_t count)
     cleanup_temp(ssa_path);
     cleanup_temp(asm_path);
     return rc == -1 ? 1 : rc;
+}
+
+static int eval_string(const char *source)
+{
+    char tmp_pi[4096];
+    if (pith_stage_temp(source, ".pi", tmp_pi, sizeof(tmp_pi)) != 0)
+        return 1;
+
+    const char *paths[1] = { tmp_pi };
+    int rc = cmd_run(paths, 1);
+    cleanup_temp(tmp_pi);
+    return rc;
+}
+
+static int count_block_depth(const char *source)
+{
+    TokenList tokens;
+    memset(&tokens, 0, sizeof(tokens));
+    size_t lex_errors = 0, lex_warnings = 0;
+    pith_lex("<repl>", source, &tokens, &lex_errors, &lex_warnings);
+    if (lex_errors > 0) {
+        pith_token_list_free(&tokens);
+        return 0;
+    }
+
+    int depth = 0;
+    for (size_t i = 0; i < tokens.count; i++) {
+        TokenType t = tokens.tokens[i].type;
+        if (t == TOK_KW_IF || t == TOK_KW_WHILE || t == TOK_KW_FN)
+            depth++;
+        else if (t == TOK_KW_END)
+            depth--;
+    }
+    pith_token_list_free(&tokens);
+    return depth > 0 ? depth : 0;
+}
+
+static bool is_persistent_statement(const char *buf)
+{
+    while (*buf == ' ' || *buf == '\t' || *buf == '\n' || *buf == '\r') buf++;
+    if (strncmp(buf, "fn ", 3) == 0) return true;
+    if (strncmp(buf, "import ", 7) == 0) return true;
+    if (strncmp(buf, "mut ", 4) == 0) return true;
+    if (strchr(buf, '=') != NULL) return true;
+    return false;
+}
+
+static int cmd_repl(void)
+{
+    printf("pith " PITH_VERSION " (interactive REPL)\n");
+    printf("Type expressions or statements. Type 'exit' or Ctrl-D to quit.\n\n");
+
+    char *session_history = calloc(1, 128 * 1024);
+    if (!session_history) {
+        fprintf(stderr, "pith: out of memory\n");
+        return 1;
+    }
+    size_t hist_len = 0;
+
+    char *eval_buf = malloc(160 * 1024);
+    if (!eval_buf) {
+        free(session_history);
+        fprintf(stderr, "pith: out of memory\n");
+        return 1;
+    }
+
+    char buffer[65536];
+    buffer[0] = '\0';
+    size_t buf_len = 0;
+    int open_blocks = 0;
+
+    for (;;) {
+        if (open_blocks == 0)
+            printf("pith> ");
+        else
+            printf("...   ");
+        fflush(stdout);
+
+        char line[4096];
+        if (!fgets(line, sizeof(line), stdin)) {
+            printf("\n");
+            break;
+        }
+
+        char *trimmed = line;
+        while (*trimmed == ' ' || *trimmed == '\t')
+            trimmed++;
+
+        if (open_blocks == 0) {
+            if (strcmp(trimmed, "exit\n") == 0 || strcmp(trimmed, "exit\r\n") == 0 ||
+                strcmp(trimmed, "quit\n") == 0 || strcmp(trimmed, "quit\r\n") == 0)
+                break;
+            if (strcmp(trimmed, "\n") == 0 || strcmp(trimmed, "\r\n") == 0)
+                continue;
+        }
+
+        size_t line_len = strlen(line);
+        if (buf_len + line_len + 1 < sizeof(buffer)) {
+            memcpy(buffer + buf_len, line, line_len);
+            buf_len += line_len;
+            buffer[buf_len] = '\0';
+        }
+
+        open_blocks = count_block_depth(buffer);
+        if (open_blocks > 0)
+            continue;
+
+        char clean_line[4096];
+        snprintf(clean_line, sizeof(clean_line), "%s", trimmed);
+        size_t cl_len = strlen(clean_line);
+        while (cl_len > 0 && (clean_line[cl_len - 1] == '\r' || clean_line[cl_len - 1] == '\n'))
+            clean_line[--cl_len] = '\0';
+
+        bool is_stmt = (strncmp(trimmed, "if ", 3) == 0 ||
+                        strncmp(trimmed, "while ", 6) == 0 ||
+                        strncmp(trimmed, "break", 5) == 0 ||
+                        strncmp(trimmed, "continue", 8) == 0 ||
+                        strncmp(trimmed, "print ", 6) == 0 ||
+                        strncmp(trimmed, "return", 6) == 0 ||
+                        strncmp(trimmed, "fn ", 3) == 0 ||
+                        strncmp(trimmed, "import ", 7) == 0 ||
+                        strncmp(trimmed, "mut ", 4) == 0 ||
+                        strchr(trimmed, '=') != NULL);
+
+        if (!is_stmt && (strchr(buffer, '\n') == buffer + buf_len - 1 || strchr(buffer, '\n') == NULL)) {
+            snprintf(eval_buf, 160 * 1024, "%s\nprint %s\n", session_history, clean_line);
+            eval_string(eval_buf);
+        } else {
+            snprintf(eval_buf, 160 * 1024, "%s\n%s\n", session_history, buffer);
+            int rc = eval_string(eval_buf);
+            if (rc == 0 && is_persistent_statement(buffer)) {
+                if (hist_len + buf_len + 2 < 128 * 1024) {
+                    memcpy(session_history + hist_len, buffer, buf_len);
+                    hist_len += buf_len;
+                    if (session_history[hist_len - 1] != '\n') {
+                        session_history[hist_len++] = '\n';
+                    }
+                    session_history[hist_len] = '\0';
+                }
+            }
+        }
+
+        buffer[0] = '\0';
+        buf_len = 0;
+    }
+
+    free(eval_buf);
+    free(session_history);
+    return 0;
 }
 
 static int cmd_build(const char **paths, size_t count,
@@ -952,7 +1118,7 @@ static int cmd_decompile_ir(const char **paths, size_t count)
 }
 
 /*
- * `pith decompile <binary>`: self-healing workspace unpacking — read
+ * `pith decompile <binary>`: self-healing workspace unpacking - read
  * the EOF PithDebugFooter, seek back to the payload, and extract the
  * archived files into ./restored_workspace/.
  */
@@ -1169,9 +1335,11 @@ static int run_custom_task(const char *verb, int argc, char **argv)
 static void print_help(void)
 {
     printf("pith v" PITH_VERSION
-           " — a dead-simple, bracketless systems-scripting language\n"
+           " - a dead-simple, bracketless systems-scripting language\n"
            "that compiles directly to native machine code via QBE.\n\n"
            "USAGE:\n"
+           "    pith                         start the interactive REPL\n"
+           "    pith repl                    start the interactive REPL\n"
            "    pith run <file.pi> [more.pi]   compile & execute via the "
            "instant pipeline\n"
            "    pith build <file.pi> [more.pi] [--embed-source] [-o out]\n"
@@ -1216,8 +1384,11 @@ static int cmd_engine_report(void)
     printf("pith engine report\n");
     printf("  host os           : %s\n", engine_host_os());
     printf("  execution backend : %s\n", engine_backend_name());
-    printf("  aot linker        : %s\n", engine_aot_linker_name());
+#if defined(PITH_HAVE_LIBQBE)
+    printf("  qbe               : embedded in-process (libqbe)\n");
+#else
     printf("  qbe               : %s\n", qbe ? qbe : "not found in PATH");
+#endif
     printf("  as                : %s\n", as_bin ? as_bin : "not found in PATH");
     printf("  mold              : %s\n", mold ? mold : "not found in PATH "
            "(builds will use the tcc linker)");
@@ -1243,8 +1414,7 @@ int main(int argc, char **argv)
 static int pith_main(int argc, char **argv)
 {
     if (argc < 2) {
-        print_help();
-        return 0;
+        return cmd_repl();
     }
 
     /* toolchain version proxying: a project's [toolchain].pithVersion
@@ -1255,6 +1425,9 @@ static int pith_main(int argc, char **argv)
 
     const char *cmd = argv[1];
 
+    if (strcmp(cmd, "repl") == 0) {
+        return cmd_repl();
+    }
     if (strcmp(cmd, "help") == 0 || strcmp(cmd, "--help") == 0 ||
         strcmp(cmd, "-h") == 0) {
         print_help();
@@ -1348,6 +1521,7 @@ static int pith_main(int argc, char **argv)
             fprintf(stderr, "error: `pith run` expects a script file\n");
             return 2;
         }
+        pith_rt_init_args(argc - 2, argv + 2);
         return cmd_run(paths, count);
     }
     if (strcmp(cmd, "build") == 0) {

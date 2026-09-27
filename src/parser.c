@@ -1,5 +1,5 @@
 /*
- * parser.c — recursive descent parser for The Pith Programming Language
+ * parser.c - recursive descent parser for The Pith Programming Language
  *
  * Bracketless blocks close with a single `end`; newlines separate
  * statements. A lexical scope stack decides whether `name = expr` is a
@@ -30,6 +30,7 @@ typedef struct {
     size_t      errors;
     int         depth;      /* expression nesting guard              */
     int         block_depth;/* block nesting guard (C stack safety)  */
+    int         loop_depth; /* loop nesting guard (for break validation) */
 } Parser;
 
 /* ------------------------------------------------------------------ */
@@ -163,11 +164,13 @@ static ScopeVar *scope_declare(Parser *p, const char *name)
 static void parse_error_tok(Parser *p, const Token *t, size_t span,
                             const char *fmt, const char *arg)
 {
+    p->errors++;
+    if (p->errors > 25)
+        return;
     char msg[512];
     snprintf(msg, sizeof(msg), fmt, arg ? arg : "");
     pith_emit_diagnostic("error", msg, p->filepath, p->source,
                          t ? t->loc.line : 1, t ? t->loc.col : 1, span);
-    p->errors++;
 }
 
 static const char *tok_kind_name(TokenType type)
@@ -180,6 +183,12 @@ static const char *tok_kind_name(TokenType type)
     case TOK_KW_PRINT:   return "`print`";
     case TOK_KW_FN:      return "`fn`";
     case TOK_KW_RETURN:  return "`return`";
+    case TOK_KW_WHILE:    return "`while`";
+    case TOK_KW_BREAK:    return "`break`";
+    case TOK_KW_CONTINUE: return "`continue`";
+    case TOK_KW_AND:      return "`and`";
+    case TOK_KW_OR:       return "`or`";
+    case TOK_KW_NOT:      return "`not`";
     case TOK_IDENTIFIER: return "an identifier";
     case TOK_INT_LITERAL:  return "an integer literal";
     case TOK_FLOAT_LITERAL: return "a float literal";
@@ -228,8 +237,11 @@ static const Token *expect(Parser *p, TokenType type, const char *what)
 {
     if (at(p, type))
         return advance(p);
-    parse_error_tok(p, peek(p), 1, "expected %s, found %s",
-                    what ? what : tok_kind_name(type));
+    char buf[256];
+    snprintf(buf, sizeof(buf), "expected %s, found %s",
+             what ? what : tok_kind_name(type),
+             tok_kind_name(peek(p)->type));
+    parse_error_tok(p, peek(p), 1, "%s", buf);
     return NULL;
 }
 
@@ -382,7 +394,7 @@ static ASTNode *parse_postfix(Parser *p)
         node = access;
     }
 
-    /* call suffix: callee(arg, ...) — possibly chained */
+    /* call suffix: callee(arg, ...) - possibly chained */
     while (at(p, TOK_OP_LPAREN)) {
         const Token *lp = advance(p);
 
@@ -437,6 +449,16 @@ static ASTNode *parse_postfix(Parser *p)
 
 static ASTNode *parse_unary(Parser *p)
 {
+    if (at(p, TOK_KW_NOT)) {
+        const Token *op = advance(p);
+        ASTNode *operand = parse_unary(p);
+        if (!operand)
+            return NULL;
+        ASTNode *n = node_new(p, AST_UNARY_OP, op->loc);
+        n->as.unary_op.operand = operand;
+        n->as.unary_op.op = TOK_KW_NOT;
+        return n;
+    }
     if (at(p, TOK_OP_MINUS)) {
         const Token *op = advance(p);
         ASTNode *operand = parse_unary(p);
@@ -461,6 +483,7 @@ static ASTNode *parse_unary(Parser *p)
 
         ASTNode *n = node_new(p, AST_UNARY_OP, op->loc);
         n->as.unary_op.operand = operand;
+        n->as.unary_op.op = TOK_OP_MINUS;
         return n;
     }
     return parse_postfix(p);
@@ -526,6 +549,28 @@ static ASTNode *parse_equality(Parser *p)
     return left;
 }
 
+static ASTNode *parse_logical_and(Parser *p)
+{
+    ASTNode *left = parse_equality(p);
+    while (left && at(p, TOK_KW_AND)) {
+        const Token *op = advance(p);
+        ASTNode *right = parse_equality(p);
+        left = binary_join(p, op, left, right);
+    }
+    return left;
+}
+
+static ASTNode *parse_logical_or(Parser *p)
+{
+    ASTNode *left = parse_logical_and(p);
+    while (left && at(p, TOK_KW_OR)) {
+        const Token *op = advance(p);
+        ASTNode *right = parse_logical_and(p);
+        left = binary_join(p, op, left, right);
+    }
+    return left;
+}
+
 static ASTNode *parse_expression(Parser *p)
 {
     if (++p->depth > PITH_MAX_EXPR_DEPTH) {
@@ -534,7 +579,7 @@ static ASTNode *parse_expression(Parser *p)
         p->depth--;
         return NULL;
     }
-    ASTNode *n = parse_equality(p);
+    ASTNode *n = parse_logical_or(p);
     p->depth--;
     return n;
 }
@@ -549,6 +594,7 @@ static ASTNode *parse_statement(Parser *p, int top_level);
 /* Sized type helpers                                                  */
 /* ------------------------------------------------------------------ */
 
+static const char *sized_type_name(PithSizedType t) __attribute__((unused));
 static const char *sized_type_name(PithSizedType t)
 {
     switch (t) {
@@ -710,13 +756,19 @@ static ASTNode *parse_assignment(Parser *p, bool is_mut)
                 v->is_mut = is_mut;
                 v->sized_type = PITH_SIZED_AUTO;
             }
-            if (strcmp(name->lexeme, "os") == 0)
+            if (strcmp(name->lexeme, "os") == 0 ||
+                strcmp(name->lexeme, "fs") == 0 ||
+                strcmp(name->lexeme, "net") == 0) {
+                char msg[128];
+                snprintf(msg, sizeof(msg),
+                         "variable `%s` shadows the builtin %s namespace",
+                         name->lexeme, name->lexeme);
                 pith_emit_diagnostic("warning",
-                                     "variable `os` shadows the builtin os "
-                                     "namespace",
+                                     msg,
                                      p->filepath, p->source,
                                      name->loc.line, name->loc.col,
                                      strlen(name->lexeme));
+            }
         } else {
             /* reassignment: the existing symbol must be mut */
             ScopeVar *existing = scope_lookup(p, name->lexeme);
@@ -854,7 +906,53 @@ static ASTNode *parse_fn_decl(Parser *p)
     const Token *name = expect(p, TOK_IDENTIFIER, "a function name");
     if (!name)
         return NULL;
-    if (!expect(p, TOK_NEWLINE, "end of line after the function name"))
+
+    ASTFnParam *params = NULL;
+    size_t param_count = 0;
+    size_t param_cap = 0;
+
+    if (at(p, TOK_OP_LPAREN)) {
+        advance(p);
+        if (!at(p, TOK_OP_RPAREN)) {
+            for (;;) {
+                const Token *pname = expect(p, TOK_IDENTIFIER, "a parameter name");
+                if (!pname) {
+                    sync_to_newline(p);
+                    return NULL;
+                }
+                PithSizedType st = PITH_SIZED_AUTO;
+                if (at(p, TOK_OP_COLON)) {
+                    advance(p);
+                    st = parse_type_name(p);
+                }
+                if (param_count == param_cap) {
+                    size_t ncap = param_cap ? param_cap * 2 : 4;
+                    ASTFnParam *np = pith_arena_alloc(p->arena, ncap * sizeof(ASTFnParam));
+                    if (!np) {
+                        fputs("pith: out of memory while parsing\n", stderr);
+                        exit(1);
+                    }
+                    for (size_t i = 0; i < param_count; i++)
+                        np[i] = params[i];
+                    params = np;
+                    param_cap = ncap;
+                }
+                params[param_count].name = arena_strdup(p->arena, pname->lexeme);
+                params[param_count].sized_type = st;
+                param_count++;
+
+                if (at(p, TOK_OP_COMMA)) {
+                    advance(p);
+                    continue;
+                }
+                break;
+            }
+        }
+        if (!expect(p, TOK_OP_RPAREN, "`)` after parameter list"))
+            sync_to_newline(p);
+    }
+
+    if (!expect(p, TOK_NEWLINE, "end of line after the function declaration"))
         sync_to_newline(p);
 
     ASTNode *n = node_new(p, AST_FN_DECL, kw->loc);
@@ -863,13 +961,26 @@ static ASTNode *parse_fn_decl(Parser *p)
         fputs("pith: out of memory while parsing\n", stderr);
         exit(1);
     }
+    n->as.fn_decl.params = params;
+    n->as.fn_decl.param_count = param_count;
+
+    scope_push(p);
+    for (size_t i = 0; i < param_count; i++) {
+        ScopeVar *v = scope_declare(p, params[i].name);
+        if (v) {
+            v->is_mut = true;
+            v->sized_type = params[i].sized_type;
+        }
+    }
     n->as.fn_decl.body = parse_block(p);
+    scope_pop(p);
+
     if (!expect(p, TOK_KW_END, "`end` to close the fn block"))
         sync_to_newline(p);
     return n;
 }
 
-/* import "path.c" — native C import (top level only) */
+/* import "path.c" - native C import (top level only) */
 static ASTNode *parse_import(Parser *p)
 {
     const Token *kw = advance(p);   /* TOK_KW_IMPORT */
@@ -886,6 +997,68 @@ static ASTNode *parse_import(Parser *p)
         exit(1);
     }
     return n;
+}
+
+/* while condition ... end */
+static ASTNode *parse_while(Parser *p)
+{
+    const Token *w = advance(p);   /* TOK_KW_WHILE */
+    SourceLoc loc = w->loc;
+
+    ASTNode *cond = parse_expression(p);
+    if (!cond) {
+        sync_to_newline(p);
+        return NULL;
+    }
+
+    if (!expect(p, TOK_NEWLINE, "a newline after the `while` condition")) {
+        sync_to_newline(p);
+        return NULL;
+    }
+
+    p->loop_depth++;
+    ASTBlock *body = parse_block(p);
+    p->loop_depth--;
+
+    if (!expect(p, TOK_KW_END, "`end` to close the while block"))
+        sync_to_newline(p);
+
+    ASTNode *n = node_new(p, AST_WHILE_STMT, loc);
+    n->as.while_stmt.condition = cond;
+    n->as.while_stmt.body = body;
+    return n;
+}
+
+/* break (exits enclosing while loop) */
+static ASTNode *parse_break(Parser *p)
+{
+    const Token *t = advance(p);   /* TOK_KW_BREAK */
+    SourceLoc loc = t->loc;
+
+    if (p->loop_depth <= 0) {
+        parse_error_tok(p, t, 1,
+                        "`break` outside of a loop", NULL);
+        sync_to_newline(p);
+        return NULL;
+    }
+
+    return node_new(p, AST_BREAK_STMT, loc);
+}
+
+/* continue (skips to the next iteration of the enclosing while loop) */
+static ASTNode *parse_continue(Parser *p)
+{
+    const Token *t = advance(p);   /* TOK_KW_CONTINUE */
+    SourceLoc loc = t->loc;
+
+    if (p->loop_depth <= 0) {
+        parse_error_tok(p, t, 1,
+                        "`continue` outside of a loop", NULL);
+        sync_to_newline(p);
+        return NULL;
+    }
+
+    return node_new(p, AST_CONTINUE_STMT, loc);
 }
 
 /*
@@ -944,6 +1117,12 @@ static ASTNode *parse_statement(Parser *p, int top_level)
     switch (t->type) {
     case TOK_KW_IF:
         return parse_if(p);
+    case TOK_KW_WHILE:
+        return parse_while(p);
+    case TOK_KW_BREAK:
+        return parse_break(p);
+    case TOK_KW_CONTINUE:
+        return parse_continue(p);
     case TOK_KW_PRINT:
         return parse_print(p);
     case TOK_KW_RETURN:
@@ -1025,10 +1204,21 @@ ASTBlock *pith_parse(const char *filepath, const char *source,
 
     ASTBlock *program = block_new(&p);
     for (;;) {
+        if (p.errors >= 50)
+            break;
         while (at(&p, TOK_NEWLINE))
             advance(&p);
         if (at(&p, TOK_EOF))
             break;
+
+        if (at(&p, TOK_KW_END) || at(&p, TOK_KW_ELSE) || at(&p, TOK_KW_ELSEIF)) {
+            parse_error_tok(&p, peek(&p), 1,
+                            "unexpected %s outside of a block",
+                            tok_kind_name(peek(&p)->type));
+            advance(&p);
+            sync_to_newline(&p);
+            continue;
+        }
 
         if (at(&p, TOK_KW_FN)) {
             ASTNode *stmt = parse_fn_decl(&p);
@@ -1052,6 +1242,8 @@ ASTBlock *pith_parse(const char *filepath, const char *source,
                             "found %s",
                             tok_kind_name(peek(&p)->type));
             sync_to_newline(&p);
+            if (!at(&p, TOK_EOF) && !at(&p, TOK_NEWLINE))
+                advance(&p);
         }
     }
 

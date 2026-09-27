@@ -1,4 +1,4 @@
-# Makefile — strict POSIX build recipe for the pith binary and runtime.
+# Makefile - strict POSIX build recipe for the pith binary and runtime.
 #
 # The toolchain links against the vendored tcc tree (vendor/tcc) for
 # libtcc (the in-memory execution bridge and built-in ELF linker) and
@@ -21,11 +21,15 @@ POSIXDEF = -D_POSIX_C_SOURCE=200809L
 VENDOR_TCC = vendor/tcc
 LIBTCC = $(VENDOR_TCC)/libtcc.a
 
-# libtcc is always built from the vendored tree (it is part of this
-# repository); every object gets these flags (only the engine uses
-# them, the rest are harmless).
+VENDOR_QBE = vendor/qbe
+LIBQBE = $(VENDOR_QBE)/libqbe.a
+
+# libtcc and libqbe are built from vendored trees
 TCC_CFLAGS = -DPITH_HAVE_LIBTCC=1 -I$(VENDOR_TCC)
 TCC_LINK = $(LIBTCC) -ldl
+
+QBE_CFLAGS = -DPITH_HAVE_LIBQBE=1 -I$(VENDOR_QBE)
+QBE_LINK = $(LIBQBE)
 
 DEFINES = $(POSIXDEF)
 
@@ -42,8 +46,8 @@ PITH = pith
 
 all: $(PITH) $(RUNTIME_LIB)
 
-$(PITH): $(PITH_OBJS) $(RUNTIME_OBJS) $(LIBTCC)
-	$(CC) $(LDFLAGS) -o $@ $(PITH_OBJS) $(RUNTIME_OBJS) $(TCC_LINK)
+$(PITH): $(PITH_OBJS) $(RUNTIME_OBJS) $(LIBTCC) $(LIBQBE)
+	$(CC) $(LDFLAGS) -o $@ $(PITH_OBJS) $(RUNTIME_OBJS) $(QBE_LINK) $(TCC_LINK)
 
 # Find an `ar` that can CREATE archives (BusyBox ar can only
 # extract/list archives, which breaks static library builds).
@@ -69,7 +73,32 @@ $(RUNTIME_LIB): $(RUNTIME_OBJS)
 .SUFFIXES: .c .o
 
 .c.o:
-	$(CC) $(DEFINES) $(CFLAGS) $(TCC_CFLAGS) -c -o $@ $<
+	$(CC) $(DEFINES) $(CFLAGS) $(TCC_CFLAGS) $(QBE_CFLAGS) -c -o $@ $<
+
+# ------------------------------------------------------------------
+# Vendored QBE (libqbe)
+# ------------------------------------------------------------------
+
+vendor/qbe/.pith-patched: patches/qbe-embed.patch vendor/qbe/parse.c
+	if grep -q "qbe_err_jmp" vendor/qbe/parse.c; then \
+		touch vendor/qbe/.pith-patched; \
+	else \
+		cd vendor/qbe && patch -p1 -N < ../../patches/qbe-embed.patch && touch .pith-patched; \
+	fi
+
+$(LIBQBE): vendor/qbe/.pith-patched
+	AR_BIN=""; \
+	for a in /usr/bin/ar `command -v x86_64-linux-gnu-ar` `command -v llvm-ar`; do \
+		if [ -n "$$a" ] && $$a --version 2>/dev/null | head -n 1 | grep -qE 'GNU ar|LLVM'; then \
+			AR_BIN=$$a; \
+			break; \
+		fi; \
+	done; \
+	if [ -z "$$AR_BIN" ]; then \
+		AR_BIN=ar; \
+	fi; \
+	AR_DIR=`dirname "$$AR_BIN"`; \
+	cd $(VENDOR_QBE) && PATH="$$AR_DIR:$$PATH" $(MAKE) libqbe.a
 
 # ------------------------------------------------------------------
 # Vendored tcc (libtcc)
@@ -137,6 +166,38 @@ check test: all
 	# [CODEGEN] INT64 boundaries, empty branches, deterministic SIGFPE
 	@! ./pith run tests/codegen_int64.pi 2>/dev/null | grep -q BROKEN
 	./pith run tests/codegen_branches.pi 2>/dev/null | grep -q "empty: done"
+	# [LOOPS] while loops and break statements (JIT and AOT)
+	@! ./pith run tests/test_while.pi 2>/dev/null | grep -q BROKEN
+	./pith run tests/test_while.pi 2>/dev/null | grep -q "while: done"
+	./pith build tests/test_while.pi
+	@! ./test_while | grep -q BROKEN
+	./test_while | grep -q "while: done"
+	@rm -f test_while
+	@! ./pith run tests/while_err_break.pi > /dev/null 2>&1
+	# [LOGICAL] and, or, not, and continue statements (JIT and AOT)
+	@! ./pith run tests/test_logical.pi 2>/dev/null | grep -q BROKEN
+	./pith run tests/test_logical.pi 2>/dev/null | grep -q "logical: done"
+	./pith build tests/test_logical.pi
+	@! ./test_logical | grep -q BROKEN
+	./test_logical | grep -q "logical: done"
+	@rm -f test_logical
+	@! ./pith run tests/while_err_continue.pi > /dev/null 2>&1
+	# [FUNCTIONS] user functions, recursion, direct calls (JIT and AOT)
+	@! ./pith run tests/test_fn_call.pi 2>/dev/null | grep -q BROKEN
+	./pith run tests/test_fn_call.pi 2>/dev/null | grep -q "functions: done"
+	./pith build tests/test_fn_call.pi
+	@! ./test_fn_call | grep -q BROKEN
+	./test_fn_call | grep -q "functions: done"
+	@rm -f test_fn_call
+	# [BUILTINS] os.* and net.* namespaces (JIT and AOT)
+	@! ./pith run tests/test_os_net.pi 2>/dev/null | grep -q BROKEN
+	./pith run tests/test_os_net.pi 2>/dev/null | grep -q "os_net: done"
+	./pith build tests/test_os_net.pi
+	@! ./test_os_net | grep -q BROKEN
+	./test_os_net | grep -q "os_net: done"
+	@rm -f test_os_net tests/test_scratch.txt
+	# [REPL] interactive execution and session persistence
+	@printf 'x = 10\nx + 5\nexit\n' | ./pith repl 2>/dev/null | grep -q "15"
 	# [FFI] native C import pipeline: JIT and AOT paths
 	@! ./pith run tests/test_ffi.pi 2>/dev/null | grep -q BROKEN
 	./pith run tests/test_ffi.pi 2>/dev/null | grep -q "ffi: done"
@@ -190,7 +251,7 @@ check test: all
 	cd /tmp/opencode/pith_check && HOME=/tmp/opencode/pith_check "$$OLDPWD/pith" pkg sync | grep -q "verified"
 	# cleanup invariants: nothing the suite created may survive it
 	@rm -rf /tmp/opencode/pith_check
-	@for f in test_audit test_ffi pith.lock tests/gen_deep_blocks.pi tests/gen_deep_over.pi tests/gen_deep_parens.pi tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0; do \
+	@for f in test_audit test_ffi test_while test_logical test_fn_call test_os_net tests/test_scratch.txt pith.lock tests/gen_deep_blocks.pi tests/gen_deep_over.pi tests/gen_deep_parens.pi tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0; do \
 		if [ -e "$$f" ]; then \
 			echo "check: residue left behind: $$f" >&2; \
 			exit 1; \
@@ -207,12 +268,14 @@ check test: all
 	@echo "all checks passed (workspace clean)"
 
 clean:
-	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi test_types tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
+	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
 	rm -rf restored_workspace .pith
 
 distclean: clean
 	-cd $(VENDOR_TCC) && $(MAKE) clean
 	rm -f $(VENDOR_TCC)/config.mak $(VENDOR_TCC)/config.h
+	-cd $(VENDOR_QBE) && $(MAKE) clean
+	rm -f $(VENDOR_QBE)/libqbe.a
 
 help:
 	@echo "make           build the pith binary and runtime"

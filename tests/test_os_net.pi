@@ -1,0 +1,48 @@
+# test_os_net.pi - Tests for os.*, fs.*, and net.* builtin namespaces
+
+# 1. File I/O (fs namespace)
+w_ok = fs.writeFile("tests/test_scratch.txt", "pith file io works!")
+if w_ok == 1
+    print "write: ok"
+end
+
+content = fs.readFile("tests/test_scratch.txt")
+if content == "pith file io works!"
+    print "read: ok"
+end
+
+root_content = root.fs.readFile("tests/test_scratch.txt")
+if root_content == "pith file io works!"
+    print "root.fs: ok"
+end
+
+# 2. Environment variables
+env_val = os.getEnv("PATH")
+if env_val != ""
+    print "env: ok"
+end
+
+# 3. CLI args
+argc = os.argCount()
+if argc >= 0
+    print "argc: ok"
+end
+
+# 4. Networking primitives
+# AF_INET = 2, SOCK_STREAM = 1, 0
+fd = net.socket(2, 1, 0)
+if fd >= 0
+    print "socket: ok"
+    rc = net.close(fd)
+    if rc == 0
+        print "close: ok"
+    end
+end
+
+# 5. Root namespace explicit access
+k = root.os.identifyKernel
+if k != ""
+    print "root.os: ok"
+end
+
+print "os_net: done"

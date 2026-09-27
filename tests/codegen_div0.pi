@@ -2,7 +2,7 @@
 # native integer division by a zero-valued variable must fail
 # deterministically with SIGFPE.
 #
-# Adversarial note: the naive `z = 0` / `x = 1 / z` does NOT trap —
+# Adversarial note: the naive `z = 0` / `x = 1 / z` does NOT trap  - 
 # QBE's load/store forwarding sees through the stack slot, promotes
 # the zero to a constant, and folds the division away entirely. The
 # divisor below is made opaque to the optimizer by deriving it from a

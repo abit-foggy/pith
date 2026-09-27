@@ -1,9 +1,9 @@
 /*
- * api.h — The Pith Programming Language
+ * api.h - The Pith Programming Language
  *
  * Internal runtime ABI: everything the compiler frontend, engine, and
  * generated QBE code call into. The value object itself is defined by
- * the FFI header (pith.h), which this header includes — imported C
+ * the FFI header (pith.h), which this header includes - imported C
  * modules see the same canonical definition.
  *
  * ABI notes:
@@ -85,11 +85,24 @@ int32_t pith_rt_is_darwin(void);
 /* 1 only on Apple macOS (Apple-specific, not generic Darwin). */
 int32_t pith_rt_is_macos(void);
 
-/* Print the string data to stdout. */
+/* Print functions */
 void pith_rt_print(PithValue *str);
+void pith_rt_print_int(int64_t val);
+void pith_rt_print_bool(int32_t val);
+
+/* Process & Environment */
+void pith_rt_init_args(int argc, char **argv);
+int32_t pith_rt_arg_count(void);
+PithValue *pith_rt_get_arg(int32_t index);
+PithValue *pith_rt_get_env(PithValue *key);
+void pith_rt_exit(int32_t code);
+
+/* File I/O */
+PithValue *pith_rt_file_read(PithValue *path);
+int32_t pith_rt_file_write(PithValue *path, PithValue *content);
 
 /* ------------------------------------------------------------------ */
-/* Network primitives (runtime/network.c) — POSIX/Win32 stubs          */
+/* Network primitives (runtime/network.c) - POSIX/Win32 stubs          */
 /* ------------------------------------------------------------------ */
 
 int32_t pith_net_socket(int32_t domain, int32_t type, int32_t protocol);
@@ -97,6 +110,11 @@ int32_t pith_net_connect(int32_t fd, const char *host, int32_t port);
 int32_t pith_net_send(int32_t fd, const char *buf, int32_t len);
 int32_t pith_net_recv(int32_t fd, char *buf, int32_t len);
 int32_t pith_net_close(int32_t fd);
+
+/* Higher-level net wrappers */
+int32_t pith_rt_net_connect(int32_t fd, PithValue *host, int32_t port);
+int32_t pith_rt_net_send(int32_t fd, PithValue *data);
+PithValue *pith_rt_net_recv(int32_t fd, int32_t max_len);
 
 #ifdef __cplusplus
 }

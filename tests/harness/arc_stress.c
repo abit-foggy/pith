@@ -54,7 +54,7 @@ int main(void)
         pith_release(b);
     }
 
-    /* aliasing churn: transfer semantics must stay balanced — this is
+    /* aliasing churn: transfer semantics must stay balanced - this is
        exactly what the compiler emits for `y = x` (retain the alias,
        drop the original owner, release at scope exit) */
     for (int i = 0; i < 100000; i++) {

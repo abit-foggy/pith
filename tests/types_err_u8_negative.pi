@@ -1,2 +1,2 @@
-# [TYPES] u8 negative literal — expect compile error
+# [TYPES] u8 negative literal - expect compile error
 val: u8 = -1

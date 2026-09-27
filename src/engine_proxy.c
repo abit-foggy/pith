@@ -1,5 +1,5 @@
 /*
- * engine_proxy.c — libtcc in-memory execution bridge, AOT dispatcher,
+ * engine_proxy.c - libtcc in-memory execution bridge, AOT dispatcher,
  * and transparent toolchain version proxy for The Pith Programming
  * Language.
  *
@@ -15,7 +15,7 @@
  *   as -o temp.o script.s, then linked against runtime/libruntime.a
  *   in-process by the embedded tcc (its built-in ELF linker) on
  *   Linux / Windows NT / FreeBSD, or via mold through the compiler
- *   driver on Darwin — falling back to a tcc binary or the system
+ *   driver on Darwin - falling back to a tcc binary or the system
  *   linker when those are unavailable.
  *
  * Toolchain proxying:
@@ -40,6 +40,10 @@
 #if defined(PITH_HAVE_LIBTCC) && !defined(__APPLE__)
 #define PITH_USE_TCC 1
 #include <libtcc.h>
+#endif
+
+#if defined(PITH_HAVE_LIBQBE)
+#include "qbe_embed.h"
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -333,9 +337,25 @@ int pith_stage_temp(const char *text, const char *suffix,
 
 char *pith_qbe_lower(const char *ssa_path)
 {
-    const char *qbe = getenv("PITH_QBE");
-    if (!qbe || !*qbe)
-        qbe = "qbe";
+    const char *qbe_override = getenv("PITH_QBE");
+#if defined(PITH_HAVE_LIBQBE)
+    if (!qbe_override || !*qbe_override) {
+        FILE *inf = fopen(ssa_path, "r");
+        if (!inf) {
+            fprintf(stderr, "error: cannot open SSA file '%s'\n", ssa_path);
+            return NULL;
+        }
+        char *asm_code = qbe_compile_file(inf, ssa_path);
+        fclose(inf);
+        if (!asm_code) {
+            fprintf(stderr, "error: embedded QBE failed to compile SSA to assembly\n");
+            return NULL;
+        }
+        return asm_code;
+    }
+#endif
+
+    const char *qbe = qbe_override && *qbe_override ? qbe_override : "qbe";
 
     char cmd[8192];
     snprintf(cmd, sizeof(cmd), "\"%s\" \"%s\"", qbe, ssa_path);
@@ -379,6 +399,22 @@ char *pith_qbe_lower(const char *ssa_path)
     return buf;
 }
 
+char *pith_qbe_lower_string(const char *ssa_text)
+{
+#if defined(PITH_HAVE_LIBQBE)
+    const char *qbe_override = getenv("PITH_QBE");
+    if (!qbe_override || !*qbe_override) {
+        return qbe_compile_string(ssa_text, 0);
+    }
+#endif
+    char ssa_path[4096];
+    if (pith_stage_temp(ssa_text, ".ssa", ssa_path, sizeof(ssa_path)) != 0)
+        return NULL;
+    char *asm_src = pith_qbe_lower(ssa_path);
+    unlink(ssa_path);
+    return asm_src;
+}
+
 /* ------------------------------------------------------------------ */
 /* Runtime symbol table                                               */
 /* ------------------------------------------------------------------ */
@@ -392,6 +428,8 @@ static const RuntimeSymbol runtime_syms[] = {
     { "pith_rt_is_darwin",         (const void *)pith_rt_is_darwin         },
     { "pith_rt_is_macos",          (const void *)pith_rt_is_macos          },
     { "pith_rt_print",             (const void *)pith_rt_print             },
+    { "pith_rt_print_int",         (const void *)pith_rt_print_int         },
+    { "pith_rt_print_bool",        (const void *)pith_rt_print_bool        },
     { "pith_str_new",              (const void *)pith_str_new              },
     { "pith_str_concat",           (const void *)pith_str_concat           },
     { "pith_str_equals",           (const void *)pith_str_equals           },
@@ -412,6 +450,16 @@ static const RuntimeSymbol runtime_syms[] = {
     { "pith_net_send",             (const void *)pith_net_send             },
     { "pith_net_recv",             (const void *)pith_net_recv             },
     { "pith_net_close",            (const void *)pith_net_close            },
+    { "pith_rt_init_args",         (const void *)pith_rt_init_args         },
+    { "pith_rt_arg_count",         (const void *)pith_rt_arg_count         },
+    { "pith_rt_get_arg",           (const void *)pith_rt_get_arg           },
+    { "pith_rt_get_env",           (const void *)pith_rt_get_env           },
+    { "pith_rt_exit",              (const void *)pith_rt_exit              },
+    { "pith_rt_file_read",         (const void *)pith_rt_file_read         },
+    { "pith_rt_file_write",        (const void *)pith_rt_file_write        },
+    { "pith_rt_net_connect",       (const void *)pith_rt_net_connect       },
+    { "pith_rt_net_send",          (const void *)pith_rt_net_send          },
+    { "pith_rt_net_recv",          (const void *)pith_rt_net_recv          },
 };
 
 #define NSYMS (sizeof(runtime_syms) / sizeof(runtime_syms[0]))
@@ -650,7 +698,7 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
         return -1;
     }
 
-    int (*entry)(void) = (int (*)(void))tcc_get_symbol(tcc, "main");
+    int (*entry)(int, char **) = (int (*)(int, char **))tcc_get_symbol(tcc, "main");
     if (!entry) {
         fprintf(stderr, "pith engine: entrypoint `main` not found\n");
         while (nimport_states > 0)
@@ -661,7 +709,7 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
         return -1;
     }
 
-    rc = entry();
+    rc = entry(0, NULL);
 
     /* the import states must outlive execution; free them now */
     while (nimport_states > 0)
@@ -905,7 +953,7 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
     }
 #else
 #if defined(PITH_HAVE_LIBTCC)
-    /* tcc is embedded: link in-process with its built-in ELF linker —
+    /* tcc is embedded: link in-process with its built-in ELF linker  - 
        no external linker or subprocess on this path. */
     {
         const char *tdir = pith_tcc_dir();

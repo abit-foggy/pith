@@ -1,5 +1,5 @@
 /*
- * memory.c — deterministic ARC engine for The Pith Programming Language
+ * memory.c - deterministic ARC engine for The Pith Programming Language
  *
  * Every value carries an inline 32-bit reference count and a type
  * discriminator (see pith.h). The compiler injects deterministic

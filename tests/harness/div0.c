@@ -4,7 +4,7 @@
  * Division by zero must fail deterministically: v0.1 emits no
  * zero-division guard, so native integer division by a zero-valued
  * variable dies with SIGFPE. This harness forks, execs `pith run` on
- * tests/codegen_div0.pi, and verifies the exact signal — proving the
+ * tests/codegen_div0.pi, and verifies the exact signal - proving the
  * crash propagates predictably instead of hanging or producing a
  * wrong result.
  *

@@ -1,5 +1,5 @@
 /*
- * lexer.c — UTF-8 scanner for The Pith Programming Language, v0.1
+ * lexer.c - UTF-8 scanner for The Pith Programming Language, v0.1
  *
  * Tracks 1-based line/col (col counts UTF-8 codepoints), treats
  * newlines as statement delimiters, skips whitespace and # comments,
@@ -389,7 +389,8 @@ static void lex_ident(Lexer *lx)
 
     static const char *const keywords[] = {
         "if", "elseif", "else", "end", "print", "fn", "return", "import",
-        "mut", "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64",
+        "mut", "while", "break", "continue", "and", "or", "not",
+        "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64",
         "f32", "f64"
     };
     for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
@@ -397,7 +398,8 @@ static void lex_ident(Lexer *lx)
             static const TokenType kw_tok[] = {
                 TOK_KW_IF, TOK_KW_ELSEIF, TOK_KW_ELSE, TOK_KW_END,
                 TOK_KW_PRINT, TOK_KW_FN, TOK_KW_RETURN, TOK_KW_IMPORT,
-                TOK_KW_MUT,
+                TOK_KW_MUT, TOK_KW_WHILE, TOK_KW_BREAK, TOK_KW_CONTINUE,
+                TOK_KW_AND, TOK_KW_OR, TOK_KW_NOT,
                 TOK_TYPE_I8, TOK_TYPE_U8, TOK_TYPE_I16, TOK_TYPE_U16,
                 TOK_TYPE_I32, TOK_TYPE_U32, TOK_TYPE_I64, TOK_TYPE_U64,
                 TOK_TYPE_F32, TOK_TYPE_F64
