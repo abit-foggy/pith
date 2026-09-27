@@ -1,0 +1,34 @@
+# tests/test_wine.pi - Verification suite for Windows target under Wine
+if os.isNT != 1
+    proc.exit(101)
+end
+
+if os.identifyKernel != "nt"
+    proc.exit(102)
+end
+
+pid = proc.pid
+if pid <= 0
+    proc.exit(103)
+end
+
+path = "wine_scratch.txt"
+content = "Pith Windows Wine Verification Suite"
+fs.writeFile(path, content)
+
+if fs.exists(path) != 1
+    proc.exit(104)
+end
+
+readback = fs.readFile(path)
+if readback != content
+    proc.exit(105)
+end
+
+fs.remove(path)
+if fs.exists(path) != 0
+    proc.exit(106)
+end
+
+proc.sleep(50)
+print "wine: all tests passed"
