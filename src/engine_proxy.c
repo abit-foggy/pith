@@ -1260,7 +1260,7 @@ int engine_toolchain_list(void)
     printf("pith toolchains (%s):\n", dir);
 
     int any = 0;
-#ifdef __linux__
+#ifndef _WIN32
     DIR *d = opendir(dir);
     if (d) {
         struct dirent *ent;
