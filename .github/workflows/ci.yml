@@ -41,6 +41,19 @@ jobs:
         run: |
           make check
 
+      - name: test windows build (wine)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if ! command -v wine >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends wine64 wine
+          fi
+          make test-wine
+
+      - name: test darwin mach-o build
+        run: |
+          make test-darwin
+
       - name: package nightly artifact
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
