@@ -14,13 +14,8 @@ Security updates are applied to the active release stream and rolling nightly bu
 
 The Pith project takes security vulnerabilities seriously. If you discover a vulnerability or security issue, please do not file a public issue on GitHub.
 
-### Reporting Channels
-
-1. **GitHub Private Vulnerability Reporting (Preferred)**:
-   Navigate to the Security tab of the repository on GitHub, select "Report a vulnerability", and provide the details.
-
-2. **Email**:
-   If Private Vulnerability Reporting is unavailable, send an email to `security@abit-foggy.com` with the subject line `[SECURITY] Pith Vulnerability Report`.
+Please report security vulnerabilities through GitHub Private Vulnerability Reporting:
+Navigate to the Security tab of the repository on GitHub, select "Report a vulnerability", and provide the details.
 
 ### What to Include in Your Report
 
