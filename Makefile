@@ -148,7 +148,7 @@ check test: all
 	./pith run tests/test_audit.pi
 	./pith build tests/test_audit.pi
 	./test_audit
-	@tail -c 16 test_audit | grep -qv PITHDEBG
+	@if tail -c 16 test_audit | grep -q PITHDEBG; then exit 1; fi
 	@rm -f test_audit
 	@! ./pith run tests/test_sweep.pi 2>/dev/null | grep -q BROKEN
 	@! ./pith run tests/test_arc.pi 2>/dev/null | grep -q BROKEN

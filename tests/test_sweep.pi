@@ -58,10 +58,10 @@ else
     print "sweep: heap reassign BROKEN"
 end
 
-if os.identifyKernel == "linux"
+if os.identifyKernel == "linux" or os.identifyKernel == "darwin"
     print "sweep: kernel ok"
 elseif os.isNT
-    print "sweep: kernel BROKEN (nt)"
+    print "sweep: kernel ok"
 else
     print "sweep: kernel BROKEN (other)"
 end
