@@ -43,6 +43,36 @@ Creates or truncates the file at `path` and writes the provided `content` string
   - POSIX: `open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644)`, followed by complete loop write and `close(2)`.
   - Windows: `CreateFileA(..., GENERIC_WRITE, ..., CREATE_ALWAYS, ...)`.
 
+```pith
+fn exists(path: string) int
+```
+
+Checks whether a filesystem entry exists at `path`.
+
+- **Parameters**:
+  - `path`: Target file or directory path.
+- **Return value**:
+  - `1` if the file or directory exists.
+  - `0` if it does not exist or access is denied.
+- **Underlying Syscalls**:
+  - POSIX: `access(path, F_OK)`.
+  - Windows: `GetFileAttributesA(path)`.
+
+```pith
+fn remove(path: string) int
+```
+
+Deletes the file entry at `path`.
+
+- **Parameters**:
+  - `path`: Target file path.
+- **Return value**:
+  - `1` if the file was deleted successfully.
+  - `0` on system error (`ENOENT`, `EACCES`, etc.).
+- **Underlying Syscalls**:
+  - POSIX: `unlink(path)`.
+  - Windows: `DeleteFileA(path)`.
+
 ---
 
 ## Namespace: `os`
@@ -116,6 +146,18 @@ Returns the argument at 0-based `index`.
 - **Return value**:
   - String argument value.
   - Returns an empty string `""` if `index < 0` or `index >= argCount()`.
+
+```pith
+fn sleep(ms: int) void
+```
+
+Suspends execution of the calling process for at least `ms` milliseconds.
+
+- **Parameters**:
+  - `ms`: Duration in milliseconds (non-negative).
+- **Underlying Syscalls**:
+  - POSIX: `nanosleep(2)`.
+  - Windows: `Sleep(DWORD)`.
 
 ```pith
 fn exit(code: int) void

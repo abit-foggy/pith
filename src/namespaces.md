@@ -36,12 +36,32 @@ print "File contents:"
 print content
 ```
 
+### Checking if a File Exists
+Use `fs.exists(path)`. It returns `1` if the file or path exists, or `0` if it does not:
+
+```pith
+if fs.exists("notes.txt")
+    print "notes.txt is present!"
+end
+```
+
+### Deleting a File
+Use `fs.remove(path)` to delete a file. It returns `1` on success, or `0` on error:
+
+```pith
+if fs.remove("notes.txt")
+    print "File removed."
+end
+```
+
 ### `fs` Reference
 
 | Function | What it does | Returns |
 |---|---|---|
 | `fs.readFile(path)` | Reads an entire file | File contents as text (or `""` on error) |
 | `fs.writeFile(path, content)` | Writes text into a file | `1` on success, `0` on error |
+| `fs.exists(path)` | Checks if a file exists | `1` if exists, `0` otherwise |
+| `fs.remove(path)` | Deletes a file | `1` on success, `0` on error |
 
 ---
 
@@ -113,6 +133,15 @@ if count == 0
 end
 ```
 
+### Pausing Execution (Sleeping)
+Use `proc.sleep(ms)` to pause execution for a given number of milliseconds:
+
+```pith
+print "Waiting 250 milliseconds..."
+proc.sleep(250)
+print "Done!"
+```
+
 ### `proc` Reference
 
 | Member | What it does | Returns |
@@ -121,6 +150,7 @@ end
 | `proc.getArg(index)` | Gets argument at 0-based index | String argument |
 | `proc.getEnv(name)` | Gets an environment variable | String value (or `""` if unset) |
 | `proc.pid` | Process ID of current process | Integer PID |
+| `proc.sleep(ms)` | Pauses execution for milliseconds | void |
 | `proc.exit(code)` | Terminates program immediately | Exits with given status code |
 
 ---
