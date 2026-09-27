@@ -1,26 +1,25 @@
 #!/bin/sh
 #
-# install.sh - installer for The Pith Programming Language.
+# install-nightly.sh - nightly installer for The Pith Programming Language.
 #
-# Downloads the latest release from GitHub and installs it under a
+# Downloads the nightly release from GitHub and installs it under a
 # prefix (default: ~/.local). Safe to re-run; overrides are honored.
 #
-#   curl -fsSL https://raw.githubusercontent.com/abit-foggy/pith/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/abit-foggy/pith/main/install-nightly.sh | sh
 #
 # Overrides:
-#   PREFIX=/usr/local sh install.sh      install location (default ~/.local)
-#   PITH_REPO=owner/pith sh install.sh   GitHub repository (default abit-foggy/pith)
-#   PITH_TAG=v0.1.0 sh install.sh        install a specific release
-#                                        (default: the latest tag)
+#   PREFIX=/usr/local sh install-nightly.sh      install location (default ~/.local)
+#   PITH_REPO=owner/pith sh install-nightly.sh   GitHub repository (default abit-foggy/pith)
+#   PITH_TAG=nightly sh install-nightly.sh       install a specific release (default: nightly)
 #
 set -eu
 
 REPO="${PITH_REPO:-abit-foggy/pith}"
 PREFIX="${PREFIX:-${HOME}/.local}"
-TAG="${PITH_TAG:-}"
+TAG="${PITH_TAG:-nightly}"
 
-say() { printf 'install.sh: %s\n' "$*"; }
-die() { printf 'install.sh: error: %s\n' "$*" >&2; exit 1; }
+say() { printf 'install-nightly.sh: %s\n' "$*"; }
+die() { printf 'install-nightly.sh: error: %s\n' "$*" >&2; exit 1; }
 
 # ------------------------------------------------------------------ #
 # prerequisites                                                      #
@@ -85,7 +84,7 @@ say "detected $OS ($ARCH) -> pith-$TRIPLET"
 if [ "$OS" = "Darwin" ]; then
     if ! xcode-select -p >/dev/null 2>&1; then
         say "the Xcode command line utilities are not installed"
-        printf 'install.sh: install them now? [y/N] '
+        printf 'install-nightly.sh: install them now? [y/N] '
         read -r answer
         case "$answer" in
             [yY]*)
@@ -107,40 +106,29 @@ if [ "$OS" = "Darwin" ]; then
 fi
 
 # ------------------------------------------------------------------ #
-# latest release resolution                                          #
-# ------------------------------------------------------------------ #
-
-if [ -z "$TAG" ]; then
-    say "resolving the latest release of $REPO"
-    TAG="$(fetch "https://api.github.com/repos/$REPO/releases/latest" |
-        grep -o '"tag_name": *"[^"]*"' |
-        sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')" || TAG=""
-    [ -n "$TAG" ] || die "no releases found for $REPO (has a release \
-been published? build from source: https://github.com/$REPO)"
-fi
-
-say "installing $TAG from https://github.com/$REPO"
-
-# ------------------------------------------------------------------ #
 # download + install                                                 #
 # ------------------------------------------------------------------ #
+
+say "installing $TAG from https://github.com/$REPO"
 
 TMPDIR_PITH="$(mktemp -d 2>/dev/null || mktemp -d -t pith-install)"
 trap 'rm -rf "$TMPDIR_PITH"' EXIT INT TERM
 
-TARBALL="pith-$TRIPLET.tar.gz"
+TARBALL="pith-$TRIPLET-nightly.tar.gz"
 URL="https://github.com/$REPO/releases/download/$TAG/$TARBALL"
+FALLBACK_TARBALL="pith-$TRIPLET.tar.gz"
+FALLBACK_URL="https://github.com/$REPO/releases/download/$TAG/$FALLBACK_TARBALL"
 
 say "downloading $TARBALL"
 downloaded=0
 if fetch "$URL" "$TMPDIR_PITH/$TARBALL" 2>/dev/null; then
     downloaded=1
-elif fetch "https://github.com/$REPO/releases/download/$TAG/pith-$TRIPLET-nightly.tar.gz" "$TMPDIR_PITH/$TARBALL" 2>/dev/null; then
+elif fetch "$FALLBACK_URL" "$TMPDIR_PITH/$TARBALL" 2>/dev/null; then
     downloaded=1
 elif command -v gh >/dev/null 2>&1; then
     if gh release download "$TAG" -R "$REPO" -p "$TARBALL" -O "$TMPDIR_PITH/$TARBALL" 2>/dev/null; then
         downloaded=1
-    elif gh release download "$TAG" -R "$REPO" -p "pith-$TRIPLET-nightly.tar.gz" -O "$TMPDIR_PITH/$TARBALL" 2>/dev/null; then
+    elif gh release download "$TAG" -R "$REPO" -p "$FALLBACK_TARBALL" -O "$TMPDIR_PITH/$TARBALL" 2>/dev/null; then
         downloaded=1
     fi
 fi
