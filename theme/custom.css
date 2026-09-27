@@ -3,6 +3,10 @@
    ========================================================================== */
 
 :root {
+    --sidebar-target-width: 320px;
+    --content-max-width: 900px;
+    --code-font-size: 1.52rem;
+
     --pith-primary: #10b981;
     --pith-primary-dark: #059669;
     --pith-primary-light: #34d399;
@@ -12,12 +16,12 @@
 }
 
 /* --------------------------------------------------------------------------
-   Typography & Base Styles
+   Typography & Base Styles (1rem = 10px in mdBook reset)
    -------------------------------------------------------------------------- */
 
 body {
-    font-size: 1rem;
-    line-height: 1.7;
+    font-size: 1.7rem; /* 17px */
+    line-height: 1.76;
     letter-spacing: -0.01em;
 }
 
@@ -29,19 +33,36 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-    font-size: 2.25rem;
+    font-size: 3.4rem; /* 34px */
     line-height: 1.25;
-    padding-bottom: 0.3em;
-    border-bottom: 2px solid rgba(16, 185, 129, 0.2);
+    padding-bottom: 0.35em;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.25);
+    margin-top: 0.5em;
 }
 
 h2 {
-    font-size: 1.6rem;
+    font-size: 2.4rem; /* 24px */
     line-height: 1.35;
+    margin-top: 1.9em;
 }
 
 h3 {
-    font-size: 1.25rem;
+    font-size: 1.95rem; /* 19.5px */
+    margin-top: 1.5em;
+}
+
+h4 {
+    font-size: 1.7rem; /* 17px */
+}
+
+p, ul, ol {
+    margin-top: 0.9em;
+    margin-bottom: 0.9em;
+}
+
+li {
+    margin-top: 0.35em;
+    margin-bottom: 0.35em;
 }
 
 a {
@@ -67,27 +88,28 @@ a:hover {
 
 code {
     font-family: var(--pith-font-mono);
-    font-size: 0.88em;
-    padding: 0.2em 0.45em;
-    border-radius: 5px;
-    background-color: rgba(125, 125, 125, 0.12);
+    font-size: 0.92em;
+    padding: 0.22em 0.5em;
+    border-radius: 6px;
+    background-color: rgba(125, 125, 125, 0.14);
     font-feature-settings: "calt" 1, "liga" 1;
 }
 
 pre {
-    border-radius: 8px;
-    padding: 1.1em 1.3em;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-radius: 9px;
+    padding: 1.25em 1.5em;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     position: relative;
-    border: 1px solid rgba(125, 125, 125, 0.15);
+    border: 1px solid rgba(125, 125, 125, 0.18);
+    margin: 1.5em 0;
 }
 
 pre code {
     padding: 0;
     background: transparent !important;
     border-radius: 0;
-    font-size: 0.9em;
-    line-height: 1.65;
+    font-size: 1.52rem; /* 15.2px */
+    line-height: 1.68;
 }
 
 /* Copy button styling */
@@ -95,6 +117,9 @@ pre code {
     border-radius: 6px;
     opacity: 0.7;
     transition: all 0.2s ease;
+    top: 8px;
+    right: 8px;
+    padding: 6px 8px;
 }
 
 .copy-button:hover {
@@ -112,28 +137,28 @@ table {
     border-spacing: 0;
     border-radius: 8px;
     overflow: hidden;
-    margin: 1.6em 0;
+    margin: 1.8em 0;
     border: 1px solid rgba(125, 125, 125, 0.2);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 table th {
-    background-color: rgba(16, 185, 129, 0.08);
+    background-color: rgba(16, 185, 129, 0.09);
     font-weight: 600;
     text-align: left;
-    padding: 12px 16px;
-    font-size: 0.95em;
-    border-bottom: 2px solid rgba(16, 185, 129, 0.2);
+    padding: 13px 18px;
+    font-size: 1.6rem;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.25);
 }
 
 table td {
-    padding: 11px 16px;
-    border-top: 1px solid rgba(125, 125, 125, 0.12);
-    font-size: 0.92em;
+    padding: 12px 18px;
+    border-top: 1px solid rgba(125, 125, 125, 0.14);
+    font-size: 1.55rem;
 }
 
 table tr:hover td {
-    background-color: rgba(16, 185, 129, 0.03);
+    background-color: rgba(16, 185, 129, 0.035);
 }
 
 /* --------------------------------------------------------------------------
@@ -142,22 +167,23 @@ table tr:hover td {
 
 blockquote {
     border-left: 4px solid var(--pith-primary);
-    background-color: rgba(16, 185, 129, 0.06);
-    margin: 1.5em 0;
-    padding: 0.8em 1.2em;
+    background-color: rgba(16, 185, 129, 0.07);
+    margin: 1.6em 0;
+    padding: 1em 1.4em;
     border-radius: 0 8px 8px 0;
+    font-size: 1.65rem;
 }
 
 blockquote p {
-    margin: 0.4em 0;
+    margin: 0.35em 0;
 }
 
 .badge {
     display: inline-block;
     font-family: var(--pith-font-mono);
-    font-size: 0.75rem;
+    font-size: 1.25rem;
     font-weight: 600;
-    padding: 0.15rem 0.55rem;
+    padding: 0.2rem 0.65rem;
     border-radius: 9999px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -176,22 +202,27 @@ blockquote p {
    -------------------------------------------------------------------------- */
 
 .sidebar {
-    font-size: 0.92rem;
+    font-size: 1.55rem; /* 15.5px */
 }
 
 .sidebar .part-title {
-    font-size: 0.75rem;
+    font-size: 1.25rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--pith-primary-dark);
-    margin-top: 1.6em;
-    margin-bottom: 0.4em;
+    margin-top: 1.8em;
+    margin-bottom: 0.5em;
     padding-left: 12px;
 }
 
 .coal .sidebar .part-title, .navy .sidebar .part-title, .ayu .sidebar .part-title {
     color: var(--pith-primary-light);
+}
+
+.sidebar ol.chapter li a {
+    padding: 5px 12px;
+    line-height: 1.4;
 }
 
 .sidebar ol.chapter li a.active {
@@ -208,9 +239,10 @@ blockquote p {
    -------------------------------------------------------------------------- */
 
 #searchbar {
+    font-size: 1.6rem;
     border-radius: 8px;
     border: 1px solid rgba(16, 185, 129, 0.3);
-    padding: 0.6em 1em;
+    padding: 0.7em 1.1em;
     transition: all 0.2s ease;
 }
 
@@ -225,10 +257,10 @@ blockquote p {
 
 kbd {
     font-family: var(--pith-font-mono);
-    font-size: 0.8em;
+    font-size: 1.35rem;
     background: rgba(125, 125, 125, 0.15);
     border: 1px solid rgba(125, 125, 125, 0.3);
     border-radius: 4px;
-    padding: 2px 6px;
+    padding: 2px 7px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
