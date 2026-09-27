@@ -14,7 +14,7 @@
 # ------------------------------------------------------------------
 
 CC = cc
-CFLAGS = -std=c99 -O2 -Wall -Wextra -Wno-unused-parameter
+CFLAGS = -std=c99 -O2 -Wall -Wextra -Wno-unused-parameter -Iinclude
 LDFLAGS =
 POSIXDEF = -D_POSIX_C_SOURCE=200809L
 
@@ -74,6 +74,9 @@ $(RUNTIME_LIB): $(RUNTIME_OBJS)
 
 .c.o:
 	$(CC) $(DEFINES) $(CFLAGS) $(TCC_CFLAGS) $(QBE_CFLAGS) -c -o $@ $<
+
+$(PITH_OBJS): vendor/qbe/.pith-patched vendor/tcc/.pith-patched
+$(RUNTIME_OBJS): vendor/tcc/.pith-patched
 
 # ------------------------------------------------------------------
 # Vendored QBE (libqbe)

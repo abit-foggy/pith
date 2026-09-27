@@ -1380,8 +1380,7 @@ static void print_help(void)
 static int cmd_engine_report(void)
 {
     char rtlib[4096];
-    char qbe_path[4096], as_path[4096], mold_path[4096];
-    const char *qbe = pith_find_in_path("qbe", qbe_path, sizeof(qbe_path));
+    char as_path[4096], mold_path[4096];
     const char *as_bin = pith_find_in_path("as", as_path, sizeof(as_path));
     const char *mold = pith_find_in_path("mold", mold_path,
                                          sizeof(mold_path));
@@ -1392,6 +1391,8 @@ static int cmd_engine_report(void)
 #if defined(PITH_HAVE_LIBQBE)
     printf("  qbe               : embedded in-process (libqbe)\n");
 #else
+    char qbe_path[4096];
+    const char *qbe = pith_find_in_path("qbe", qbe_path, sizeof(qbe_path));
     printf("  qbe               : %s\n", qbe ? qbe : "not found in PATH");
 #endif
     printf("  as                : %s\n", as_bin ? as_bin : "not found in PATH");
