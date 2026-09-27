@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# install.sh — installer for The Pith Programming Language.
+# install.sh - installer for The Pith Programming Language.
 #
 # Downloads the latest release from GitHub and installs it under a
 # prefix (default: ~/.local). Safe to re-run; overrides are honored.
@@ -154,7 +154,7 @@ done
 case ":$PATH:" in
     *":$PREFIX/bin:"*) ;;
     *)
-        say "NOTE: $PREFIX/bin is not in your PATH — add it:"
+        say "NOTE: $PREFIX/bin is not in your PATH - add it:"
         say "  echo 'export PATH=\"$PREFIX/bin:\$PATH\"' >> ~/.profile"
         ;;
 esac

@@ -2,3 +2,7 @@
 	path = vendor/tcc
 	url = https://repo.or.cz/r/tinycc.git
 	branch = mob
+[submodule "vendor/qbe"]
+	path = vendor/qbe
+	url = https://c9x.me/git/qbe.git
+	branch = master

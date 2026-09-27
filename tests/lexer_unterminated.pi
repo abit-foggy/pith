@@ -1,4 +1,4 @@
 # [PARSER] Unterminated string literal. Expected: compiler error
-# (exit != 0) with a diagnostic pointing at the opening quote — no
+# (exit != 0) with a diagnostic pointing at the opening quote - no
 # segfault, no malformed QBE IL.
 print "never closed

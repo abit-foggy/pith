@@ -1,5 +1,5 @@
 /*
- * config.c — flat dotted-key TOML-subset reader shared by the package
+ * config.c - flat dotted-key TOML-subset reader shared by the package
  * manager, engine proxy, and task runner.
  *
  * Recognizes `# comments`, `[section]` and `[dotted.section]` headers,

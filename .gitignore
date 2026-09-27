@@ -6,6 +6,12 @@ runtime/libruntime.a
 # test residue (make check asserts these are absent)
 test_audit
 test_ffi
+test_types
+test_while
+test_logical
+test_fn_call
+test_os_net
+tests/test_scratch.txt
 tests/gen_*.pi
 tests/harness/arc_stress
 tests/harness/arc_cycle
@@ -17,8 +23,9 @@ restored_workspace/
 .pith/
 pith.lock
 
-# Vendored tcc as a submodule
+# Vendored submodules
 vendor/tcc
+vendor/qbe
 
 # editors
 *.swp

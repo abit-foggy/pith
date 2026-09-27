@@ -9,7 +9,7 @@
  *     declared sizes, truncated blocks
  *   - non-ASCII file names must extract cleanly
  *
- * Expected behavior: exit 0 — every hostile case fails extraction
+ * Expected behavior: exit 0 - every hostile case fails extraction
  * gracefully, every benign case extracts byte-exactly, and nothing
  * is ever written outside the destination root.
  */

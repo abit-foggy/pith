@@ -1,9 +1,9 @@
 /*
- * pith.h — the minimal C runtime header exposed to imported C modules
+ * pith.h - the minimal C runtime header exposed to imported C modules
  * (`import "*.c"`). This is the canonical definition of the Pith value
  * object; the compiler runtime (include/api.h) builds on it, and the
  * engine injects a pre-baked copy of this header into every imported
- * C compilation context (src/cffi.c carries the embedded text — keep
+ * C compilation context (src/cffi.c carries the embedded text - keep
  * the two in sync).
  *
  * ABI contract for imported C code:

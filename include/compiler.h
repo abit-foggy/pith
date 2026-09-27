@@ -1,5 +1,5 @@
 /*
- * compiler.h — The Pith Programming Language, v0.1
+ * compiler.h - The Pith Programming Language, v0.1
  *
  * Shared vocabulary for the Pith frontend: source locations, tokens,
  * AST structures, lexical scopes, and the interfaces exposed by the
@@ -38,9 +38,9 @@ typedef struct {
 /* ------------------------------------------------------------------ */
 
 typedef enum {
-    QBE_TYPE_WORD = 0,   /* w — 32-bit int (booleans)                 */
-    QBE_TYPE_LONG = 1,    /* l — 64-bit int (integers, string pointers)*/
-    QBE_TYPE_DOUBLE = 2   /* d — 64-bit float                          */
+    QBE_TYPE_WORD = 0,   /* w - 32-bit int (booleans)                 */
+    QBE_TYPE_LONG = 1,    /* l - 64-bit int (integers, string pointers)*/
+    QBE_TYPE_DOUBLE = 2   /* d - 64-bit float                          */
 } QbeTypeTag;
 
 /* ------------------------------------------------------------------ */
@@ -72,6 +72,12 @@ typedef enum {
     TOK_KW_RETURN,
     TOK_KW_IMPORT,
     TOK_KW_MUT,
+    TOK_KW_WHILE,
+    TOK_KW_BREAK,
+    TOK_KW_CONTINUE,
+    TOK_KW_AND,
+    TOK_KW_OR,
+    TOK_KW_NOT,
 
     /* sized type keywords */
     TOK_TYPE_I8,
@@ -136,7 +142,7 @@ typedef struct {
 typedef enum {
     PITH_VALUE_INT,
     PITH_VALUE_FLOAT,
-    PITH_VALUE_STRING,     /* l — pointer to a refcounted PithString   */
+    PITH_VALUE_STRING,     /* l - pointer to a refcounted PithString   */
     PITH_VALUE_BOOL,
     PITH_VALUE_ERROR       /* already-diagnosed type mismatch          */
 } PithValueType;
@@ -172,7 +178,7 @@ struct ASTBlock {
     size_t    capacity;
 };
 
-/* var_name = value — records declaration vs reassignment */
+/* var_name = value - records declaration vs reassignment */
 typedef struct {
     char    *var_name;       /* owned                                    */
     ASTNode *value;          /* expression                               */
@@ -202,7 +208,7 @@ typedef struct {
     ASTNode *expression;
 } ASTPrintStmt;
 
-/* base.member — e.g. os.identifyKernel */
+/* base.member - e.g. os.identifyKernel */
 typedef struct {
     ASTNode *base;          /* identifier expression or nested access   */
     char    *member;         /* owned member name                        */
@@ -215,15 +221,23 @@ typedef struct {
     TokenType op;
 } ASTBinaryOp;
 
-/* -operand */
+/* -operand or not operand */
 typedef struct {
-    ASTNode *operand;
+    ASTNode  *operand;
+    TokenType op;
 } ASTUnaryOp;
 
-/* fn name ... end */
 typedef struct {
-    char     *name;          /* owned                                    */
-    ASTBlock *body;
+    char         *name;
+    PithSizedType sized_type;
+} ASTFnParam;
+
+/* fn name(a, b) ... end */
+typedef struct {
+    char        *name;          /* owned                                    */
+    ASTFnParam  *params;        /* arena-owned array                        */
+    size_t       param_count;
+    ASTBlock    *body;
 } ASTFnDecl;
 
 /* return [expr] */
@@ -232,12 +246,12 @@ typedef struct {
     bool     has_value;
 } ASTReturnStmt;
 
-/* import "path.c" — a native C import */
+/* import "path.c" - a native C import */
 typedef struct {
     char *path;              /* owned; the .c file path                */
 } ASTImportStmt;
 
-/* callee(arg, ...) — a (possibly foreign) call */
+/* callee(arg, ...) - a (possibly foreign) call */
 typedef struct {
     ASTNode  *callee;        /* member access naming ns.fn             */
     ASTNode **args;          /* arena-owned array                      */
@@ -248,6 +262,12 @@ typedef struct {
 typedef struct {
     ASTNode *expr;
 } ASTExprStmt;
+
+/* while cond ... end */
+typedef struct {
+    ASTNode  *condition;
+    ASTBlock *body;
+} ASTWhileStmt;
 
 typedef enum {
     AST_ASSIGNMENT,
@@ -264,7 +284,10 @@ typedef enum {
     AST_RETURN_STMT,
     AST_IMPORT_STMT,
     AST_CALL_EXPR,
-    AST_EXPR_STMT
+    AST_EXPR_STMT,
+    AST_WHILE_STMT,
+    AST_BREAK_STMT,
+    AST_CONTINUE_STMT
 } ASTNodeType;
 
 struct ASTNode {
@@ -284,6 +307,7 @@ struct ASTNode {
         ASTImportStmt   import_stmt;
         ASTCallExpr     call;
         ASTExprStmt     expr_stmt;
+        ASTWhileStmt    while_stmt;
         char           *identifier;      /* AST_IDENTIFIER_EXPR, owned  */
         long long       int_literal;     /* AST_INT_EXPR                */
         double          float_literal;   /* AST_FLOAT_EXPR              */
@@ -351,7 +375,7 @@ void pith_token_list_free(TokenList *list);
 
 /*
  * Bump arena: all parser allocations (AST nodes, strings, scope
- * entries) come from here. Freeing is wholesale via pith_arena_free —
+ * entries) come from here. Freeing is wholesale via pith_arena_free  - 
  * individual nodes are never freed one by one.
  */
 typedef struct ArenaBlock {
@@ -390,10 +414,10 @@ ASTBlock *pith_parse(const char *filepath, const char *source,
  */
 typedef enum {
     PITH_FFI_VOID = 0,
-    PITH_FFI_WORD,      /* w — 32-bit int, enum, bool                */
-    PITH_FFI_LONG,      /* l — 64-bit int, pointer                   */
-    PITH_FFI_SINGLE,    /* s — float                                 */
-    PITH_FFI_DOUBLE     /* d — double                                */
+    PITH_FFI_WORD,      /* w - 32-bit int, enum, bool                */
+    PITH_FFI_LONG,      /* l - 64-bit int, pointer                   */
+    PITH_FFI_SINGLE,    /* s - float                                 */
+    PITH_FFI_DOUBLE     /* d - double                                */
 } PithFfiType;
 
 #define PITH_FFI_MAX_PARAMS 8
@@ -451,6 +475,8 @@ PithFfiType pith_cffi_map_type(const char *type_text,
 /* Does the builtin os namespace expose `name`? (public: used by the
    import discovery for override warnings) */
 int pith_os_member_exists(const char *name);
+int pith_fs_member_exists(const char *name);
+int pith_net_member_exists(const char *name);
 
 /* ------------------------------------------------------------------ */
 /* QBE code generator (src/gen_qbe.c)                                 */
@@ -458,7 +484,7 @@ int pith_os_member_exists(const char *name);
 
 /*
  * Whole-Program SSA Concatenation (WPSSAC): lowers EVERY translation
- * unit into a single consolidated .ssa module — all units' top-level
+ * unit into a single consolidated .ssa module - all units' top-level
  * statements share the one exported $main entry point, project
  * functions stay private, and QBE folds constants and performs
  * register allocation across the whole application in one fast pass.
@@ -472,7 +498,7 @@ int pith_os_member_exists(const char *name);
  * diagnostics. `plugin` (may be NULL) enables plugin mode: the
  * project's fn declarations are exported under author-namespaced
  * mangled symbols (`c_<author>_<module>_<name>`) and no $main is
- * emitted — the artifact is a linkable plugin, not an executable.
+ * emitted - the artifact is a linkable plugin, not an executable.
  *
  * Returns a NUL-terminated QBE .ssa buffer (owned by the caller).
  * Returns NULL on failure (diagnostics already emitted).
@@ -489,7 +515,7 @@ char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
                    const PithPluginInfo *plugin, size_t *errors);
 
 /* ------------------------------------------------------------------ */
-/* Config reader (src/config.c) — flat dotted-key TOML subset         */
+/* Config reader (src/config.c) - flat dotted-key TOML subset         */
 /* ------------------------------------------------------------------ */
 
 #define PITH_CONFIG_MAX_ENTRIES 128
@@ -513,7 +539,7 @@ int pith_config_load(const char *path, PithConfig *out);
 const char *pith_config_get(const PithConfig *cfg, const char *dotted_key);
 
 /* ------------------------------------------------------------------ */
-/* Tar archive (src/tar.c) — uncompressed ustar                      */
+/* Tar archive (src/tar.c) - uncompressed ustar                      */
 /* ------------------------------------------------------------------ */
 
 /* Append one file entry for `path` to an output stream (append mode). */
@@ -551,7 +577,7 @@ typedef struct {
  *   - Darwin: ad-hoc signed temporary executable produced by the
  *     system clang at -O0, executed immediately.
  *
- * `extra_syms` (may be NULL) registers additional host functions —
+ * `extra_syms` (may be NULL) registers additional host functions  - 
  * used by the embeddable C ABI (pith_embed.h) so host-registered
  * functions are callable from evaluated pith code.
  *
@@ -567,7 +593,7 @@ int engine_dispatch_run(const char *asm_src, const char *asm_path,
 
 /*
  * AOT: `as` the assembly into `obj_path`, then link against
- * `runtime_lib` and every imported unit's compiled object — in-process
+ * `runtime_lib` and every imported unit's compiled object - in-process
  * via the embedded tcc (its built-in ELF linker) on Linux / Windows
  * NT / FreeBSD, via mold through the compiler driver on Darwin,
  * falling back to a tcc binary or the system linker. `prebuilt_objs`
@@ -611,6 +637,9 @@ int pith_stage_temp(const char *text, const char *suffix,
 /* Run `qbe` over a staged .ssa file; returns the owned assembly text
    or NULL (diagnostic already printed). */
 char *pith_qbe_lower(const char *ssa_path);
+
+/* Lower QBE SSA directly from in-memory string; returns owned assembly text or NULL. */
+char *pith_qbe_lower_string(const char *ssa_text);
 
 /*
  * Toolchain version proxying: find the nearest pith.toml (cwd

@@ -1,4 +1,4 @@
-# install.ps1 — installer for The Pith Programming Language (PowerShell).
+# install.ps1 - installer for The Pith Programming Language (PowerShell).
 #
 # Downloads the latest release from GitHub and installs it under a
 # prefix (default: %LOCALAPPDATA%\pith).

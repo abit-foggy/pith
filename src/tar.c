@@ -1,5 +1,5 @@
 /*
- * tar.c — uncompressed ustar-compatible tar writer/reader.
+ * tar.c - uncompressed ustar-compatible tar writer/reader.
  *
  * Used for the EOF debug-workspace overlay (pith build --embed-source,
  * pith decompile <binary>) and for unpacking package tarballs

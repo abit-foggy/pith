@@ -1,9 +1,9 @@
 /*
- * pith_embed.h — embeddable C ABI host interface for The Pith
+ * pith_embed.h - embeddable C ABI host interface for The Pith
  * Programming Language.
  *
  * Host C/C++ applications embed a PithContext, register C function
- * pointers (direct registration — no virtual stack marshaling), and
+ * pointers (direct registration - no virtual stack marshaling), and
  * evaluate pith source strings, which are lowered to QBE IR and
  * executed in-memory via libtcc.
  *

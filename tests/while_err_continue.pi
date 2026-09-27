@@ -1,0 +1,3 @@
+# tests/while_err_continue.pi
+x = 10
+continue

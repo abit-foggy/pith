@@ -1,5 +1,5 @@
 /*
- * network.c — low-level POSIX/Win32 socket wrapper stubs for the pith
+ * network.c - low-level POSIX/Win32 socket wrapper stubs for the pith
  * runtime. These are v0.1 placeholders: thin, blocking wrappers around
  * the platform socket API. A future os.network namespace will surface
  * them to compiled pith code.
@@ -86,4 +86,41 @@ int32_t pith_net_close(int32_t fd)
 #else
     return (int32_t)close((int)fd);
 #endif
+}
+
+int32_t pith_rt_net_connect(int32_t fd, PithValue *host, int32_t port)
+{
+    if (!host || host->length == 0)
+        return -1;
+    char h[256];
+    size_t len = host->length < sizeof(h) - 1 ? host->length : sizeof(h) - 1;
+    memcpy(h, host->data, len);
+    h[len] = '\0';
+    return pith_net_connect(fd, h, port);
+}
+
+int32_t pith_rt_net_send(int32_t fd, PithValue *data)
+{
+    if (!data || data->length == 0)
+        return 0;
+    return pith_net_send(fd, data->data, (int32_t)data->length);
+}
+
+PithValue *pith_rt_net_recv(int32_t fd, int32_t max_len)
+{
+    if (max_len <= 0)
+        return pith_str_new("", 0);
+    if (max_len > 1024 * 1024)
+        max_len = 1024 * 1024;
+    char *buf = malloc((size_t)max_len);
+    if (!buf)
+        return pith_str_new("", 0);
+    int32_t n = pith_net_recv(fd, buf, max_len);
+    if (n <= 0) {
+        free(buf);
+        return pith_str_new("", 0);
+    }
+    PithValue *res = pith_str_new(buf, (size_t)n);
+    free(buf);
+    return res;
 }

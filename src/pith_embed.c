@@ -1,10 +1,10 @@
 /*
- * pith_embed.c — implementation of the embeddable C ABI host interface
+ * pith_embed.c - implementation of the embeddable C ABI host interface
  * (include/pith_embed.h).
  *
  * A PithContext holds host-registered function pointers. Evaluating a
- * source string runs the standard pipeline — lex, parse (bump arena),
- * QBE lowering, qbe, in-memory libtcc — with the context's functions
+ * source string runs the standard pipeline - lex, parse (bump arena),
+ * QBE lowering, qbe, in-memory libtcc - with the context's functions
  * registered into the engine alongside the runtime ABI.
  */
 #include <stdio.h>

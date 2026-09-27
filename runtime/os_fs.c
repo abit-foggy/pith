@@ -1,5 +1,5 @@
 /*
- * os_fs.c — platform identification and file descriptor primitives for
+ * os_fs.c - platform identification and file descriptor primitives for
  * The Pith Programming Language runtime.
  *
  * Strings returned to compiled pith code are freshly allocated ARC
@@ -77,7 +77,7 @@ int32_t pith_rt_is_freebsd(void)
 }
 
 /*
- * Kernel-level Darwin check: TRUE whenever uname reports "Darwin" —
+ * Kernel-level Darwin check: TRUE whenever uname reports "Darwin"  - 
  * this covers Apple macOS as well as non-Apple Darwin systems.
  */
 int32_t pith_rt_is_darwin(void)
@@ -114,4 +114,112 @@ void pith_rt_print(PithValue *str)
     fwrite(str->data, 1, str->length, stdout);
     fputc('\n', stdout);
     fflush(stdout);
+}
+
+void pith_rt_print_int(int64_t val)
+{
+    printf("%lld\n", (long long)val);
+    fflush(stdout);
+}
+
+void pith_rt_print_bool(int32_t val)
+{
+    printf("%s\n", val ? "true" : "false");
+    fflush(stdout);
+}
+
+static int g_argc = 0;
+static char **g_argv = NULL;
+
+void pith_rt_init_args(int argc, char **argv)
+{
+    g_argc = argc;
+    g_argv = argv;
+}
+
+int32_t pith_rt_arg_count(void)
+{
+    return (int32_t)g_argc;
+}
+
+PithValue *pith_rt_get_arg(int32_t index)
+{
+    if (index < 0 || index >= g_argc || !g_argv || !g_argv[index])
+        return rt_str("");
+    return rt_str(g_argv[index]);
+}
+
+PithValue *pith_rt_get_env(PithValue *key)
+{
+    if (!key || key->length == 0)
+        return rt_str("");
+    char k[256];
+    size_t len = key->length < sizeof(k) - 1 ? key->length : sizeof(k) - 1;
+    memcpy(k, key->data, len);
+    k[len] = '\0';
+    const char *val = getenv(k);
+    if (!val)
+        return rt_str("");
+    return rt_str(val);
+}
+
+void pith_rt_exit(int32_t code)
+{
+    exit((int)code);
+}
+
+PithValue *pith_rt_file_read(PithValue *path)
+{
+    if (!path || path->length == 0)
+        return rt_str("");
+    char p[4096];
+    size_t len = path->length < sizeof(p) - 1 ? path->length : sizeof(p) - 1;
+    memcpy(p, path->data, len);
+    p[len] = '\0';
+
+    FILE *f = fopen(p, "rb");
+    if (!f)
+        return rt_str("");
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return rt_str("");
+    }
+    long sz = ftell(f);
+    if (sz < 0) {
+        fclose(f);
+        return rt_str("");
+    }
+    rewind(f);
+
+    char *buf = malloc((size_t)sz + 1);
+    if (!buf) {
+        fclose(f);
+        return rt_str("");
+    }
+    size_t read_bytes = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    buf[read_bytes] = '\0';
+
+    PithValue *res = pith_str_new(buf, read_bytes);
+    free(buf);
+    return res;
+}
+
+int32_t pith_rt_file_write(PithValue *path, PithValue *content)
+{
+    if (!path || path->length == 0 || !content)
+        return 0;
+    char p[4096];
+    size_t len = path->length < sizeof(p) - 1 ? path->length : sizeof(p) - 1;
+    memcpy(p, path->data, len);
+    p[len] = '\0';
+
+    FILE *f = fopen(p, "wb");
+    if (!f)
+        return 0;
+
+    size_t written = fwrite(content->data, 1, content->length, f);
+    fclose(f);
+    return written == content->length ? 1 : 0;
 }

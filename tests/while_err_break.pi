@@ -1,0 +1,3 @@
+# tests/while_err_break.pi
+x = 10
+break

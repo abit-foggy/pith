@@ -1,0 +1,245 @@
+diff --git a/Makefile b/Makefile
+index a7c4cfe..3f43373 100644
+--- a/Makefile
++++ b/Makefile
+@@ -17,6 +17,16 @@ SRCALL   = $(OBJ:.o=.c)
+ CC       = cc
+ CFLAGS   = -std=c99 -g -Wall -Wextra -Wpedantic
+ 
++LIBCOMMOBJ = util.o parse.o abi.o cfg.o mem.o ssa.o alias.o load.o \
++             copy.o fold.o gvn.o gcm.o simpl.o ifopt.o live.o spill.o rega.o \
++             emit.o qbe_embed.o
++LIBOBJ     = $(LIBCOMMOBJ) $(AMD64OBJ) $(ARM64OBJ) $(RV64OBJ)
++
++all: qbe libqbe.a
++
++libqbe.a: $(LIBOBJ)
++	$(AR) rcs $@ $(LIBOBJ)
++
+ qbe: $(OBJ)
+ 	$(CC) $(LDFLAGS) $(OBJ) -o $@
+ 
+@@ -24,10 +34,12 @@ qbe: $(OBJ)
+ 	$(CC) $(CFLAGS) -c $< -o $@
+ 
+ $(OBJ): all.h ops.h
++$(LIBOBJ): all.h ops.h
+ $(AMD64OBJ): amd64/all.h
+ $(ARM64OBJ): arm64/all.h
+ $(RV64OBJ): rv64/all.h
+ main.o: config.h
++qbe_embed.o: config.h qbe_embed.h
+ 
+ config.h:
+ 	@case `uname` in                               \
+diff --git a/parse.c b/parse.c
+index 5d8d039..b84c640 100644
+--- a/parse.c
++++ b/parse.c
+@@ -173,6 +173,9 @@ static int nblk;
+ static int rcls;
+ static uint ntyp;
+ 
++#include <setjmp.h>
++extern jmp_buf *qbe_err_jmp;
++
+ void
+ err(char *s, ...)
+ {
+@@ -183,6 +186,8 @@ err(char *s, ...)
+ 	vfprintf(stderr, s, ap);
+ 	fprintf(stderr, "\n");
+ 	va_end(ap);
++	if (qbe_err_jmp)
++		longjmp(*qbe_err_jmp, 1);
+ 	exit(1);
+ }
+ 
+diff --git a/qbe_embed.c b/qbe_embed.c
+new file mode 100644
+index 0000000..c61c524
+--- /dev/null
++++ b/qbe_embed.c
+@@ -0,0 +1,147 @@
++#define _POSIX_C_SOURCE 200809L
++#include "all.h"
++#include "config.h"
++#include "qbe_embed.h"
++#include <setjmp.h>
++#include <string.h>
++
++Target T;
++
++extern Target T_amd64_sysv;
++extern Target T_amd64_apple;
++extern Target T_amd64_win;
++extern Target T_arm64;
++extern Target T_arm64_apple;
++extern Target T_rv64;
++
++char debug['Z'+1];
++
++static FILE *outf;
++jmp_buf *qbe_err_jmp = NULL;
++
++static void data_cb(Dat *d)
++{
++	emitdat(d, outf);
++	if (d->type == DEnd) {
++		fputs("/* end data */\n\n", outf);
++		freeall();
++	}
++}
++
++static void func_cb(Fn *fn)
++{
++	uint n;
++
++	T.abi0(fn);
++	fillcfg(fn);
++	filluse(fn);
++	promote(fn);
++	filluse(fn);
++	ssa(fn);
++	filluse(fn);
++	ssacheck(fn);
++	fillalias(fn);
++	loadopt(fn);
++	filluse(fn);
++	fillalias(fn);
++	coalesce(fn);
++	filluse(fn);
++	filldom(fn);
++	ssacheck(fn);
++	gvn(fn);
++	fillcfg(fn);
++	simplcfg(fn);
++	filluse(fn);
++	filldom(fn);
++	gcm(fn);
++	filluse(fn);
++	ssacheck(fn);
++	if (T.cansel) {
++		ifconvert(fn);
++		fillcfg(fn);
++		filluse(fn);
++		filldom(fn);
++		ssacheck(fn);
++	}
++	T.abi1(fn);
++	simpl(fn);
++	fillcfg(fn);
++	filluse(fn);
++	T.isel(fn);
++	fillcfg(fn);
++	filllive(fn);
++	fillloop(fn);
++	fillcost(fn);
++	spill(fn);
++	rega(fn);
++	fillcfg(fn);
++	simpljmp(fn);
++	fillcfg(fn);
++	assert(fn->rpo[0] == fn->start);
++	for (n = 0;; n++) {
++		if (n == fn->nblk - 1) {
++			fn->rpo[n]->link = 0;
++			break;
++		} else {
++			fn->rpo[n]->link = fn->rpo[n + 1];
++		}
++	}
++	T.emitfn(fn, outf);
++	fprintf(outf, "/* end function %s */\n\n", fn->name);
++	freeall();
++}
++
++static void dbgfile_cb(char *fn)
++{
++	emitdbgfile(fn, outf);
++}
++
++char *qbe_compile_file(FILE *inf, const char *source_name)
++{
++	if (!inf)
++		return NULL;
++
++	char *buf = NULL;
++	size_t sz = 0;
++
++	T = Deftgt;
++
++	outf = open_memstream(&buf, &sz);
++	if (!outf)
++		return NULL;
++
++	jmp_buf jb;
++	qbe_err_jmp = &jb;
++	if (setjmp(jb) != 0) {
++		qbe_err_jmp = NULL;
++		fclose(outf);
++		free(buf);
++		outf = NULL;
++		return NULL;
++	}
++
++	parse(inf, (char *)(source_name ? source_name : "pith.ssa"), dbgfile_cb, data_cb, func_cb);
++
++	T.emitfin(outf);
++
++	fclose(outf);
++	outf = NULL;
++	qbe_err_jmp = NULL;
++	return buf;
++}
++
++char *qbe_compile_string(const char *ssa_text, size_t ssa_len)
++{
++	if (!ssa_text)
++		return NULL;
++	if (ssa_len == 0)
++		ssa_len = strlen(ssa_text);
++
++	FILE *inf = fmemopen((void *)ssa_text, ssa_len, "r");
++	if (!inf)
++		return NULL;
++
++	char *res = qbe_compile_file(inf, "pith.ssa");
++	fclose(inf);
++	return res;
++}
+diff --git a/qbe_embed.h b/qbe_embed.h
+new file mode 100644
+index 0000000..25180c8
+--- /dev/null
++++ b/qbe_embed.h
+@@ -0,0 +1,29 @@
++#ifndef PITH_QBE_EMBED_H
++#define PITH_QBE_EMBED_H
++
++#include <stdio.h>
++#include <stddef.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/*
++ * Compile QBE SSA IR text from an open FILE* stream into assembly.
++ * Returns a dynamically allocated heap string (caller must free()),
++ * or NULL on failure.
++ */
++char *qbe_compile_file(FILE *inf, const char *source_name);
++
++/*
++ * Compile QBE SSA IR from an in-memory buffer into assembly.
++ * Returns a dynamically allocated heap string (caller must free()),
++ * or NULL on failure.
++ */
++char *qbe_compile_string(const char *ssa_text, size_t ssa_len);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif /* PITH_QBE_EMBED_H */

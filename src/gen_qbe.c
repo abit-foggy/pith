@@ -1,5 +1,5 @@
 /*
- * gen_qbe.c — AST walker lowering Pith programs to QBE SSA (.ssa) plus
+ * gen_qbe.c - AST walker lowering Pith programs to QBE SSA (.ssa) plus
  * deterministic ARC instructions for The Pith Programming Language, v0.1.
  *
  * Type lowering:
@@ -98,7 +98,7 @@ typedef struct {
 
 /*
  * A deferred private function: v0.1 has no call syntax, so private
- * project functions are emitted only when actually referenced —
+ * project functions are emitted only when actually referenced  - 
  * unreferenced ones are eliminated at the end of the pass (WPSSAC
  * zero-bloat). When call syntax lands, the reference tracking hooks
  * into the same list.
@@ -106,7 +106,16 @@ typedef struct {
 typedef struct {
     char     clean[128];
     ASTNode *node;
+    bool     referenced;
+    bool     emitted;
 } PendingFn;
+
+typedef struct LoopCtx {
+    struct LoopCtx *prev;
+    int             head_lbl;
+    int             exit_lbl;
+    Scope          *outer_scope;
+} LoopCtx;
 
 typedef struct {
     StrBuf      data;      /* data definitions (string literals)       */
@@ -121,6 +130,7 @@ typedef struct {
     unsigned    str;       /* $str.N counter                           */
     unsigned    fconst;    /* $fconst.N float-constant data counter    */
     bool        block_dead;/* last emitted statement was a return      */
+    LoopCtx    *loop_ctx;  /* enclosing while loop context (for break) */
     /* per-unit diagnostics lookup (WPSSAC) */
     const char **unit_paths;
     const char **unit_sources;
@@ -433,7 +443,7 @@ static void emit_load(Codegen *g, const ScopeVar *var, ExprResult *out)
 
 /* Convert an integer value to a double in place (%d =d sltof %l).
    Note: QBE's `cast` is a bit-reinterpretation, NOT a numeric
-   conversion — sltof is the signed-long-to-double conversion. */
+   conversion - sltof is the signed-long-to-double conversion. */
 static void promote_to_float(Codegen *g, ExprResult *v)
 {
     if (v->type != PITH_VALUE_INT)
@@ -462,44 +472,7 @@ static void emit_scope_releases(Codegen *g, Scope *s)
     }
 }
 /* ------------------------------------------------------------------ */
-/* Builtin namespace: os.*                                            */
-/* ------------------------------------------------------------------ */
-
-typedef struct {
-    const char   *member;
-    const char   *qbe_fn;
-    PithValueType type;
-} OsMember;
-
-static const OsMember os_members[] = {
-    { "identifyKernel",         "$pith_rt_os_kernel",         PITH_VALUE_STRING },
-    { "identifyKernelVersion",  "$pith_rt_os_kernel_version", PITH_VALUE_STRING },
-    { "isNT",                   "$pith_rt_is_nt",             PITH_VALUE_BOOL   },
-    { "isLinux",                "$pith_rt_is_linux",          PITH_VALUE_BOOL   },
-    { "isFreeBSD",              "$pith_rt_is_freebsd",        PITH_VALUE_BOOL   },
-    { "isDarwin",               "$pith_rt_is_darwin",         PITH_VALUE_BOOL   },
-    { "isMacOS",                "$pith_rt_is_macos",          PITH_VALUE_BOOL   },
-};
-
-static const OsMember *os_member_find(const char *name)
-{
-    for (size_t i = 0; i < sizeof(os_members) / sizeof(os_members[0]); i++)
-        if (strcmp(os_members[i].member, name) == 0)
-            return &os_members[i];
-    return NULL;
-}
-
-/* Does the builtin os namespace expose `name`? (public: used by the
-   import discovery for override warnings) */
-int pith_os_member_exists(const char *name)
-{
-    return os_member_find(name) != NULL;
-}
-
-static ExprResult gen_expr(Codegen *g, ASTNode *n);
-
-/* ------------------------------------------------------------------ */
-/* Native C imports: typed FFI calls                                  */
+/* Native C imports & builtins: typed FFI letters                     */
 /* ------------------------------------------------------------------ */
 
 static char ffi_letter(PithFfiType t)
@@ -512,6 +485,88 @@ static char ffi_letter(PithFfiType t)
     default:              return 'w';
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* Builtin namespaces: os.* and net.*                                 */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+    const char   *member;
+    const char   *qbe_fn;
+    PithValueType type;
+    size_t        nparams;
+    PithFfiType   params[4];
+} OsMember;
+
+static const OsMember os_members[] = {
+    { "identifyKernel",         "$pith_rt_os_kernel",         PITH_VALUE_STRING, 0, {0} },
+    { "identifyKernelVersion",  "$pith_rt_os_kernel_version", PITH_VALUE_STRING, 0, {0} },
+    { "isNT",                   "$pith_rt_is_nt",             PITH_VALUE_BOOL,   0, {0} },
+    { "isLinux",                "$pith_rt_is_linux",          PITH_VALUE_BOOL,   0, {0} },
+    { "isFreeBSD",              "$pith_rt_is_freebsd",        PITH_VALUE_BOOL,   0, {0} },
+    { "isDarwin",               "$pith_rt_is_darwin",         PITH_VALUE_BOOL,   0, {0} },
+    { "isMacOS",                "$pith_rt_is_macos",          PITH_VALUE_BOOL,   0, {0} },
+    { "getEnv",                 "$pith_rt_get_env",           PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
+    { "exit",                   "$pith_rt_exit",              PITH_VALUE_ERROR,  1, { PITH_FFI_WORD } },
+    { "argCount",               "$pith_rt_arg_count",         PITH_VALUE_INT,    0, {0} },
+    { "getArg",                 "$pith_rt_get_arg",           PITH_VALUE_STRING, 1, { PITH_FFI_WORD } },
+};
+
+static const OsMember fs_members[] = {
+    { "readFile",               "$pith_rt_file_read",         PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
+    { "writeFile",              "$pith_rt_file_write",        PITH_VALUE_INT,    2, { PITH_FFI_LONG, PITH_FFI_LONG } },
+};
+
+static const OsMember net_members[] = {
+    { "socket",                 "$pith_net_socket",           PITH_VALUE_INT,    3, { PITH_FFI_WORD, PITH_FFI_WORD, PITH_FFI_WORD } },
+    { "connect",                "$pith_rt_net_connect",       PITH_VALUE_INT,    3, { PITH_FFI_WORD, PITH_FFI_LONG, PITH_FFI_WORD } },
+    { "send",                   "$pith_rt_net_send",          PITH_VALUE_INT,    2, { PITH_FFI_WORD, PITH_FFI_LONG } },
+    { "recv",                   "$pith_rt_net_recv",          PITH_VALUE_STRING, 2, { PITH_FFI_WORD, PITH_FFI_WORD } },
+    { "close",                  "$pith_net_close",            PITH_VALUE_INT,    1, { PITH_FFI_WORD } },
+};
+
+static const OsMember *os_member_find(const char *name)
+{
+    for (size_t i = 0; i < sizeof(os_members) / sizeof(os_members[0]); i++)
+        if (strcmp(os_members[i].member, name) == 0)
+            return &os_members[i];
+    return NULL;
+}
+
+static const OsMember *fs_member_find(const char *name)
+{
+    for (size_t i = 0; i < sizeof(fs_members) / sizeof(fs_members[0]); i++)
+        if (strcmp(fs_members[i].member, name) == 0)
+            return &fs_members[i];
+    return NULL;
+}
+
+static const OsMember *net_member_find(const char *name)
+{
+    for (size_t i = 0; i < sizeof(net_members) / sizeof(net_members[0]); i++)
+        if (strcmp(net_members[i].member, name) == 0)
+            return &net_members[i];
+    return NULL;
+}
+
+/* Does the builtin os namespace expose `name`? (public: used by the
+   import discovery for override warnings) */
+int pith_os_member_exists(const char *name)
+{
+    return os_member_find(name) != NULL;
+}
+
+int pith_fs_member_exists(const char *name)
+{
+    return fs_member_find(name) != NULL;
+}
+
+int pith_net_member_exists(const char *name)
+{
+    return net_member_find(name) != NULL;
+}
+
+static ExprResult gen_expr(Codegen *g, ASTNode *n);
 
 static const PithImportUnit *find_import(Codegen *g, const char *ns)
 {
@@ -635,7 +690,7 @@ static int ffi_convert_arg(Codegen *g, ExprResult *v, PithFfiType t,
 
 static ExprResult expr_dummy(void);
 
-/* ns.fn(args) — a typed call through the namespaced shim. */
+/* ns.fn(args) - a typed call through the namespaced shim. */
 /* ------------------------------------------------------------------ */
 /* Namespace resolution (unified for calls and bare accesses)         */
 /* ------------------------------------------------------------------ */
@@ -710,6 +765,20 @@ static NsResolved ns_resolve(Codegen *g, const char *ns_path,
                     r.om = om;
                     return r;
                 }
+            } else if (strcmp(module, "fs") == 0) {
+                const OsMember *fm = fs_member_find(member);
+                if (fm) {
+                    r.kind = NS_FOUND_BUILTIN;
+                    r.om = fm;
+                    return r;
+                }
+            } else if (strcmp(module, "net") == 0) {
+                const OsMember *nm = net_member_find(member);
+                if (nm) {
+                    r.kind = NS_FOUND_BUILTIN;
+                    r.om = nm;
+                    return r;
+                }
             }
             r.kind = NS_NOT_FOUND;
             return r;
@@ -749,6 +818,20 @@ static NsResolved ns_resolve(Codegen *g, const char *ns_path,
         if (om) {
             r.kind = NS_FOUND_BUILTIN;
             r.om = om;
+            return r;
+        }
+    } else if (strcmp(ns_path, "fs") == 0) {
+        const OsMember *fm = fs_member_find(member);
+        if (fm) {
+            r.kind = NS_FOUND_BUILTIN;
+            r.om = fm;
+            return r;
+        }
+    } else if (strcmp(ns_path, "net") == 0) {
+        const OsMember *nm = net_member_find(member);
+        if (nm) {
+            r.kind = NS_FOUND_BUILTIN;
+            r.om = nm;
             return r;
         }
     }
@@ -797,27 +880,94 @@ static ExprResult ns_access(Codegen *g, const char *ns_path,
     }
 
     if (r.kind == NS_FOUND_BUILTIN) {
-        /* builtin os member: a zero-arg property */
-        if (arg_count != 0) {
-            cg_error(g, loc, 1,
-                     "`%s.%s` is a property and takes no arguments",
-                     ns_path, member);
+        const OsMember *bm = r.om;
+        if (arg_count != bm->nparams) {
+            if (bm->nparams == 0) {
+                cg_error(g, loc, 1,
+                         "`%s.%s` is a property and takes no arguments",
+                         ns_path, member);
+            } else {
+                cg_error(g, loc, 1,
+                         "`%s.%s` expects %zu argument%s, got %zu",
+                         ns_path, member, bm->nparams,
+                         bm->nparams == 1 ? "" : "s", arg_count);
+            }
             return expr_dummy();
         }
+
+        for (size_t i = 0; i < arg_count; i++) {
+            if (ffi_convert_arg(g, &args[i], bm->params[i], loc, 1) != 0)
+                return expr_dummy();
+        }
+
         ExprResult res;
         memset(&res, 0, sizeof(res));
+
+        char argtext[512];
+        argtext[0] = '\0';
+        if (arg_count > 0) {
+            size_t at = 0;
+            for (size_t i = 0; i < arg_count; i++) {
+                if (i) {
+                    argtext[at++] = ',';
+                    argtext[at++] = ' ';
+                }
+                argtext[at++] = ffi_letter(bm->params[i]);
+                argtext[at++] = ' ';
+                size_t rl = strlen(args[i].ref);
+                if (at + rl + 1 >= sizeof(argtext)) {
+                    cg_error(g, loc, 1, "argument list too long", "");
+                    return expr_dummy();
+                }
+                memcpy(argtext + at, args[i].ref, rl);
+                at += rl;
+            }
+            argtext[at] = '\0';
+        }
+
+        if (bm->type == PITH_VALUE_ERROR) {
+            /* void function, e.g. os.exit */
+            if (arg_count > 0)
+                EMIT("\tcall %s(%s)\n", bm->qbe_fn, argtext);
+            else
+                EMIT("\tcall %s()\n", bm->qbe_fn);
+            snprintf(res.ref, sizeof(res.ref), "0");
+            res.type = PITH_VALUE_ERROR;
+            res.owned = false;
+            res.borrowed_arc = false;
+            return res;
+        }
+
         char t[64];
         new_tmp(g, t, sizeof(t));
-        if (r.om->type == PITH_VALUE_BOOL) {
-            EMIT("\t%s =w call %s()\n", t, r.om->qbe_fn);
+        if (bm->type == PITH_VALUE_BOOL) {
+            if (arg_count > 0)
+                EMIT("\t%s =w call %s(%s)\n", t, bm->qbe_fn, argtext);
+            else
+                EMIT("\t%s =w call %s()\n", t, bm->qbe_fn);
             res.type = PITH_VALUE_BOOL;
             res.owned = false;
-        } else {
-            EMIT("\t%s =l call %s()\n", t, r.om->qbe_fn);
+            snprintf(res.ref, sizeof(res.ref), "%s", t);
+        } else if (bm->type == PITH_VALUE_INT) {
+            if (arg_count > 0)
+                EMIT("\t%s =w call %s(%s)\n", t, bm->qbe_fn, argtext);
+            else
+                EMIT("\t%s =w call %s()\n", t, bm->qbe_fn);
+            char t_ext[64];
+            new_tmp(g, t_ext, sizeof(t_ext));
+            EMIT("\t%s =l extsw %s\n", t_ext, t);
+            res.type = PITH_VALUE_INT;
+            res.owned = false;
+            snprintf(res.ref, sizeof(res.ref), "%s", t_ext);
+        } else { /* PITH_VALUE_STRING */
+            if (arg_count > 0)
+                EMIT("\t%s =l call %s(%s)\n", t, bm->qbe_fn, argtext);
+            else
+                EMIT("\t%s =l call %s()\n", t, bm->qbe_fn);
             res.type = PITH_VALUE_STRING;
-            res.owned = true;   /* the runtime transfers a fresh ref */
+            res.owned = true;
+            snprintf(res.ref, sizeof(res.ref), "%s", t);
         }
-        snprintf(res.ref, sizeof(res.ref), "%s", t);
         res.borrowed_arc = false;
         return res;
     }
@@ -951,11 +1101,75 @@ static ExprResult ns_access(Codegen *g, const char *ns_path,
     return res;
 }
 
-/* ns.fn(args) — a typed call through the namespaced shim. */
+/* ns.fn(args) - a typed call through the namespaced shim. */
 static ExprResult gen_call(Codegen *g, ASTNode *n)
 {
     ASTCallExpr *call = &n->as.call;
     ExprResult dummy = expr_dummy();
+
+    if (call->callee->type == AST_IDENTIFIER_EXPR) {
+        const char *name = call->callee->as.identifier;
+        char clean[128];
+        qbe_sanitize(name, clean, sizeof(clean));
+
+        PendingFn *target = NULL;
+        for (size_t i = 0; i < g->pending_fn_count; i++) {
+            if (strcmp(g->pending_fns[i].clean, clean) == 0) {
+                target = &g->pending_fns[i];
+                break;
+            }
+        }
+        if (!target) {
+            cg_error(g, call->callee->loc, pith_utf8_len(name, strlen(name)),
+                     "unknown function `%s`", name);
+            return dummy;
+        }
+
+        target->referenced = true;
+
+        ASTFnDecl *decl = &target->node->as.fn_decl;
+        if (call->arg_count != decl->param_count) {
+            cg_error(g, n->loc, pith_utf8_len(name, strlen(name)),
+                     "function `%s` expects %zu argument%s, but %zu were provided",
+                     name, decl->param_count,
+                     decl->param_count == 1 ? "" : "s", call->arg_count);
+            return dummy;
+        }
+
+        ExprResult args[PITH_FFI_MAX_PARAMS];
+        for (size_t i = 0; i < call->arg_count; i++) {
+            args[i] = gen_expr(g, call->args[i]);
+            if (args[i].type == PITH_VALUE_ERROR)
+                return dummy;
+        }
+
+        char ret_tmp[64];
+        new_tmp(g, ret_tmp, sizeof(ret_tmp));
+
+        EMIT("\t%s =l call $fn_%s(", ret_tmp, clean);
+        for (size_t i = 0; i < call->arg_count; i++) {
+            if (i > 0)
+                EMIT(", ");
+            EMIT("l %s", args[i].ref);
+        }
+        EMIT(")\n");
+
+        for (size_t i = 0; i < call->arg_count; i++)
+            release_owned(g, &args[i]);
+
+        ExprResult res;
+        snprintf(res.ref, sizeof(res.ref), "%s", ret_tmp);
+        res.type = PITH_VALUE_INT;
+        res.owned = false;
+        res.borrowed_arc = false;
+        return res;
+    }
+
+    if (call->callee->type != AST_MEMBER_ACCESS) {
+        cg_error(g, call->callee->loc, 1,
+                 "a call target must be a function name or namespace member", "");
+        return dummy;
+    }
 
     char path[512];
     flatten_chain(call->callee->as.member_access.base, path,
@@ -977,7 +1191,7 @@ static ExprResult gen_call(Codegen *g, ASTNode *n)
             return dummy;
         /* conversion happens after resolution (the resolved function
            determines the parameter class); a placeholder pass would
-           double-emit — so conversion is deferred to ns_access */
+           double-emit - so conversion is deferred to ns_access */
     }
 
     ExprResult res = ns_access(g, path, member, n->loc,
@@ -1018,6 +1232,136 @@ static ExprResult expr_dummy(void)
     ExprResult v;
     snprintf(v.ref, sizeof(v.ref), "0");
     v.type = PITH_VALUE_ERROR;
+    v.owned = false;
+    v.borrowed_arc = false;
+    return v;
+}
+
+static ExprResult gen_logical_and(Codegen *g, ASTNode *n)
+{
+    char slot[64];
+    new_tmp(g, slot, sizeof(slot));
+    EMIT("\t%s =l alloc4 4\n", slot);
+
+    int eval_right_lbl = new_label(g);
+    int true_lbl = new_label(g);
+    int false_lbl = new_label(g);
+    int end_lbl = new_label(g);
+
+    ExprResult l = gen_expr(g, n->as.binary_op.left);
+    if (l.type == PITH_VALUE_STRING) {
+        cg_error(g, n->loc, 3, "cannot apply `and` to a string value", "");
+        release_owned(g, &l);
+        return expr_dummy();
+    }
+    if (l.type == PITH_VALUE_FLOAT) {
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =w cned %s, d_0.0\n", t, l.ref);
+        EMIT("\tjnz %s, @L%u, @L%u\n", t, eval_right_lbl, false_lbl);
+    } else {
+        EMIT("\tjnz %s, @L%u, @L%u\n", l.ref, eval_right_lbl, false_lbl);
+    }
+    release_owned(g, &l);
+
+    EMIT("@L%u\n", eval_right_lbl);
+    ExprResult r = gen_expr(g, n->as.binary_op.right);
+    if (r.type == PITH_VALUE_STRING) {
+        cg_error(g, n->loc, 3, "cannot apply `and` to a string value", "");
+        release_owned(g, &r);
+        return expr_dummy();
+    }
+    if (r.type == PITH_VALUE_FLOAT) {
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =w cned %s, d_0.0\n", t, r.ref);
+        EMIT("\tjnz %s, @L%u, @L%u\n", t, true_lbl, false_lbl);
+    } else {
+        EMIT("\tjnz %s, @L%u, @L%u\n", r.ref, true_lbl, false_lbl);
+    }
+    release_owned(g, &r);
+
+    EMIT("@L%u\n", true_lbl);
+    EMIT("\tstorew 1, %s\n", slot);
+    EMIT("\tjmp @L%u\n", end_lbl);
+
+    EMIT("@L%u\n", false_lbl);
+    EMIT("\tstorew 0, %s\n", slot);
+    EMIT("\tjmp @L%u\n", end_lbl);
+
+    EMIT("@L%u\n", end_lbl);
+    char res[64];
+    new_tmp(g, res, sizeof(res));
+    EMIT("\t%s =w loadw %s\n", res, slot);
+
+    ExprResult v;
+    snprintf(v.ref, sizeof(v.ref), "%s", res);
+    v.type = PITH_VALUE_BOOL;
+    v.owned = false;
+    v.borrowed_arc = false;
+    return v;
+}
+
+static ExprResult gen_logical_or(Codegen *g, ASTNode *n)
+{
+    char slot[64];
+    new_tmp(g, slot, sizeof(slot));
+    EMIT("\t%s =l alloc4 4\n", slot);
+
+    int eval_right_lbl = new_label(g);
+    int true_lbl = new_label(g);
+    int false_lbl = new_label(g);
+    int end_lbl = new_label(g);
+
+    ExprResult l = gen_expr(g, n->as.binary_op.left);
+    if (l.type == PITH_VALUE_STRING) {
+        cg_error(g, n->loc, 2, "cannot apply `or` to a string value", "");
+        release_owned(g, &l);
+        return expr_dummy();
+    }
+    if (l.type == PITH_VALUE_FLOAT) {
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =w cned %s, d_0.0\n", t, l.ref);
+        EMIT("\tjnz %s, @L%u, @L%u\n", t, true_lbl, eval_right_lbl);
+    } else {
+        EMIT("\tjnz %s, @L%u, @L%u\n", l.ref, true_lbl, eval_right_lbl);
+    }
+    release_owned(g, &l);
+
+    EMIT("@L%u\n", eval_right_lbl);
+    ExprResult r = gen_expr(g, n->as.binary_op.right);
+    if (r.type == PITH_VALUE_STRING) {
+        cg_error(g, n->loc, 2, "cannot apply `or` to a string value", "");
+        release_owned(g, &r);
+        return expr_dummy();
+    }
+    if (r.type == PITH_VALUE_FLOAT) {
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =w cned %s, d_0.0\n", t, r.ref);
+        EMIT("\tjnz %s, @L%u, @L%u\n", t, true_lbl, false_lbl);
+    } else {
+        EMIT("\tjnz %s, @L%u, @L%u\n", r.ref, true_lbl, false_lbl);
+    }
+    release_owned(g, &r);
+
+    EMIT("@L%u\n", true_lbl);
+    EMIT("\tstorew 1, %s\n", slot);
+    EMIT("\tjmp @L%u\n", end_lbl);
+
+    EMIT("@L%u\n", false_lbl);
+    EMIT("\tstorew 0, %s\n", slot);
+    EMIT("\tjmp @L%u\n", end_lbl);
+
+    EMIT("@L%u\n", end_lbl);
+    char res[64];
+    new_tmp(g, res, sizeof(res));
+    EMIT("\t%s =w loadw %s\n", res, slot);
+
+    ExprResult v;
+    snprintf(v.ref, sizeof(v.ref), "%s", res);
+    v.type = PITH_VALUE_BOOL;
     v.owned = false;
     v.borrowed_arc = false;
     return v;
@@ -1133,7 +1477,7 @@ static ExprResult gen_binary(Codegen *g, ASTNode *n)
         if (op == TOK_OP_NE) {
             char t[64];
             new_tmp(g, t, sizeof(t));
-            EMIT("\t%s =w cnew %s, 0\n", t, e);
+            EMIT("\t%s =w ceqw %s, 0\n", t, e);
             snprintf(v.ref, sizeof(v.ref), "%s", t);
         } else {
             snprintf(v.ref, sizeof(v.ref), "%s", e);
@@ -1237,6 +1581,29 @@ static ExprResult gen_expr(Codegen *g, ASTNode *n)
         return gen_member_access(g, n);
     case AST_UNARY_OP: {
         ExprResult operand = gen_expr(g, n->as.unary_op.operand);
+        if (n->as.unary_op.op == TOK_KW_NOT) {
+            char t[64];
+            new_tmp(g, t, sizeof(t));
+            if (operand.type == PITH_VALUE_FLOAT) {
+                EMIT("\t%s =w ceqd %s, d_0.0\n", t, operand.ref);
+            } else if (operand.type == PITH_VALUE_INT) {
+                EMIT("\t%s =w ceql %s, 0\n", t, operand.ref);
+            } else if (operand.type == PITH_VALUE_BOOL) {
+                EMIT("\t%s =w ceqw %s, 0\n", t, operand.ref);
+            } else {
+                cg_error(g, n->loc, 3, "cannot apply `not` to %s",
+                         value_kind_name(operand.type));
+                release_owned(g, &operand);
+                return expr_dummy();
+            }
+            release_owned(g, &operand);
+            ExprResult v;
+            snprintf(v.ref, sizeof(v.ref), "%s", t);
+            v.type = PITH_VALUE_BOOL;
+            v.owned = false;
+            v.borrowed_arc = false;
+            return v;
+        }
         if (operand.type == PITH_VALUE_INT) {
             char t[64];
             new_tmp(g, t, sizeof(t));
@@ -1265,6 +1632,10 @@ static ExprResult gen_expr(Codegen *g, ASTNode *n)
         return expr_dummy();
     }
     case AST_BINARY_OP:
+        if (n->as.binary_op.op == TOK_KW_AND)
+            return gen_logical_and(g, n);
+        if (n->as.binary_op.op == TOK_KW_OR)
+            return gen_logical_or(g, n);
         return gen_binary(g, n);
     case AST_CALL_EXPR:
         return gen_call(g, n);
@@ -1285,7 +1656,7 @@ static void gen_assignment(Codegen *g, ASTNode *n)
 {
     ASTAssignment *a = &n->as.assignment;
 
-    /* 1. evaluate the value first — it may reference this variable */
+    /* 1. evaluate the value first - it may reference this variable */
     ExprResult v = gen_expr(g, a->value);
 
     ScopeVar *var = NULL;
@@ -1377,14 +1748,22 @@ static void gen_assignment(Codegen *g, ASTNode *n)
 static void gen_print(Codegen *g, ASTNode *n)
 {
     ExprResult v = gen_expr(g, n->as.print_stmt.expression);
-    if (v.type != PITH_VALUE_STRING) {
-        if (v.type != PITH_VALUE_ERROR)   /* skip cascading diagnostics */
-            cg_error(g, n->loc, 5, "print expects a string value, not %s",
+    switch (v.type) {
+    case PITH_VALUE_STRING:
+        EMIT("\tcall $pith_rt_print(l %s)\n", v.ref);
+        break;
+    case PITH_VALUE_INT:
+        EMIT("\tcall $pith_rt_print_int(l %s)\n", v.ref);
+        break;
+    case PITH_VALUE_BOOL:
+        EMIT("\tcall $pith_rt_print_bool(w %s)\n", v.ref);
+        break;
+    default:
+        if (v.type != PITH_VALUE_ERROR)
+            cg_error(g, n->loc, 5, "print expects a printable value, not %s",
                      value_kind_name(v.type));
-        release_owned(g, &v);
-        return;
+        break;
     }
-    EMIT("\tcall $pith_rt_print(l %s)\n", v.ref);
     release_owned(g, &v);
 }
 
@@ -1456,6 +1835,86 @@ static void gen_if(Codegen *g, ASTNode *n)
     EMIT("@L%u\n", end_lbl);
 }
 
+static void gen_while(Codegen *g, ASTNode *n)
+{
+    int head_lbl = new_label(g);
+    int body_lbl = new_label(g);
+    int exit_lbl = new_label(g);
+
+    EMIT("\tjmp @L%u\n", head_lbl);
+    EMIT("@L%u\n", head_lbl);
+
+    ExprResult c = gen_expr(g, n->as.while_stmt.condition);
+    switch (c.type) {
+    case PITH_VALUE_BOOL:
+    case PITH_VALUE_INT:
+        EMIT("\tjnz %s, @L%u, @L%u\n", c.ref, body_lbl, exit_lbl);
+        break;
+    case PITH_VALUE_FLOAT: {
+        char t[64];
+        new_tmp(g, t, sizeof(t));
+        EMIT("\t%s =w cned %s, d_0.0\n", t, c.ref);
+        EMIT("\tjnz %s, @L%u, @L%u\n", t, body_lbl, exit_lbl);
+        break;
+    }
+    default:
+        release_owned(g, &c);
+        EMIT("\tjmp @L%u\n", exit_lbl);
+        break;
+    }
+
+    EMIT("@L%u\n", body_lbl);
+
+    LoopCtx lctx;
+    lctx.prev = g->loop_ctx;
+    lctx.head_lbl = head_lbl;
+    lctx.exit_lbl = exit_lbl;
+    lctx.outer_scope = g->scope;
+    g->loop_ctx = &lctx;
+
+    bool dead = gen_block(g, n->as.while_stmt.body);
+
+    g->loop_ctx = lctx.prev;
+
+    if (!dead)
+        EMIT("\tjmp @L%u\n", head_lbl);
+
+    EMIT("@L%u\n", exit_lbl);
+    g->block_dead = false;
+}
+
+static void gen_break(Codegen *g, ASTNode *n)
+{
+    if (!g->loop_ctx) {
+        cg_error(g, n->loc, 5, "`break` statement outside of a loop", "");
+        return;
+    }
+
+    /* scope exit boundary: release every local ARC allocation
+       allocated inside the loop body, up to the loop's outer scope */
+    for (Scope *s = g->scope; s && s != g->loop_ctx->outer_scope; s = s->parent)
+        emit_scope_releases(g, s);
+
+    EMIT("\tjmp @L%u\n", g->loop_ctx->exit_lbl);
+    g->block_dead = true;
+}
+
+static void gen_continue(Codegen *g, ASTNode *n)
+{
+    if (!g->loop_ctx) {
+        cg_error(g, n->loc, 8, "`continue` statement outside of a loop", "");
+        return;
+    }
+
+    /* scope exit boundary: release every local ARC allocation
+       allocated inside the loop body, up to the loop's outer scope */
+    for (Scope *s = g->scope; s && s != g->loop_ctx->outer_scope; s = s->parent)
+        emit_scope_releases(g, s);
+
+    EMIT("\tjmp @L%u\n", g->loop_ctx->head_lbl);
+    g->block_dead = true;
+}
+
 static void gen_return(Codegen *g, ASTNode *n)
 {
     ExprResult v;
@@ -1474,8 +1933,8 @@ static void gen_return(Codegen *g, ASTNode *n)
 
     switch (v.type) {
     case PITH_VALUE_INT: {
-        if (g->plugin_mode) {
-            /* plugin functions return l (64-bit): no truncation */
+        if (g->cur != &g->main || g->plugin_mode) {
+            /* functions return l (64-bit): no truncation */
             EMIT("\tret %s\n", v.ref);
             break;
         }
@@ -1515,6 +1974,12 @@ static void gen_return(Codegen *g, ASTNode *n)
 
 static void gen_fn_decl(Codegen *g, ASTNode *n)
 {
+    /* check if this exact AST node was already recorded */
+    for (size_t i = 0; i < g->pending_fn_count; i++) {
+        if (g->pending_fns[i].node == n)
+            return;
+    }
+
     char clean[128];
     qbe_sanitize(n->as.fn_decl.name, clean, sizeof(clean));
 
@@ -1562,21 +2027,65 @@ static void gen_fn_decl(Codegen *g, ASTNode *n)
         PendingFn *pf = &g->pending_fns[g->pending_fn_count++];
         snprintf(pf->clean, sizeof(pf->clean), "%s", clean);
         pf->node = n;
+        pf->referenced = false;
+        pf->emitted = false;
     }
 }
 
 static void emit_fn_body(Codegen *g, PendingFn *pf)
 {
+    pf->emitted = true;
     StrBuf *prev = g->cur;
     g->cur = &g->funcs;
 
-    EMIT("function w $fn_%s() {\n", pf->clean);
+    ASTFnDecl *decl = &pf->node->as.fn_decl;
+    EMIT("function l $fn_%s(", pf->clean);
+    for (size_t i = 0; i < decl->param_count; i++) {
+        if (i > 0)
+            EMIT(", ");
+        EMIT("l %%.arg_%zu", i);
+    }
+    EMIT(") {\n");
     EMIT("@fn_%s.start\n", pf->clean);
 
-    bool dead = gen_block(g, pf->node->as.fn_decl.body);
+    cg_scope_push(g);
 
-    EMIT("@fn_%s.exit\n", pf->clean);
-    EMIT("\tret 0\n}\n\n", pf->clean);
+    for (size_t i = 0; i < decl->param_count; i++) {
+        ScopeVar *var = calloc(1, sizeof(ScopeVar));
+        if (!var) {
+            fputs("pith: out of memory while generating QBE IR\n", stderr);
+            exit(1);
+        }
+        var->name = strdup(decl->params[i].name);
+        if (!var->name) {
+            fputs("pith: out of memory while generating QBE IR\n", stderr);
+            exit(1);
+        }
+        var->var_type = (decl->params[i].sized_type == PITH_SIZED_F64 || decl->params[i].sized_type == PITH_SIZED_F32)
+                        ? PITH_VALUE_FLOAT : PITH_VALUE_INT;
+        var->is_arc = false;
+        var->is_mut = true;
+        var->sized_type = decl->params[i].sized_type;
+        var->slot = ++g->slot;
+        var->next = g->scope->vars;
+        g->scope->vars = var;
+
+        char slot[160];
+        var_slot_name(var, slot, sizeof(slot));
+        EMIT("\t%s =l alloc8 8\n", slot);
+        EMIT("\tstorel %%.arg_%zu, %s\n", i, slot);
+    }
+
+    bool dead = gen_block(g, decl->body);
+
+    if (!dead) {
+        EMIT("@fn_%s.exit\n", pf->clean);
+        emit_scope_releases(g, g->scope);
+        EMIT("\tret 0\n");
+    }
+    EMIT("}\n\n");
+
+    cg_scope_pop(g);
 
     if (dead)
         note(g, pf->node->loc, 2,
@@ -1593,6 +2102,15 @@ static void gen_stmt(Codegen *g, ASTNode *n)
         break;
     case AST_IF_STMT:
         gen_if(g, n);
+        break;
+    case AST_WHILE_STMT:
+        gen_while(g, n);
+        break;
+    case AST_BREAK_STMT:
+        gen_break(g, n);
+        break;
+    case AST_CONTINUE_STMT:
+        gen_continue(g, n);
         break;
     case AST_PRINT_STMT:
         gen_print(g, n);
@@ -1715,7 +2233,7 @@ char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
         StrBuf out;
         sb_init(&out);
         sb_put(&out, "# pith v" PITH_VERSION
-                     " — QBE SSA plugin generated by pith (ARC on "
+                     " - QBE SSA plugin generated by pith (ARC on "
                      "strings)\n");
         if (g->data.len > 0) {
             sb_put(&out, "\n");
@@ -1735,8 +2253,19 @@ char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
         return out.buf;
     }
 
-    EMIT("export function w $main() {\n");
+    /* Pre-pass: collect all function declarations */
+    for (size_t u = 0; u < unit_count; u++) {
+        ASTBlock *unit = programs[u];
+        for (size_t i = 0; i < unit->count; i++) {
+            if (unit->stmts[i]->type == AST_FN_DECL) {
+                gen_fn_decl(g, unit->stmts[i]);
+            }
+        }
+    }
+
+    EMIT("export function w $main(w %%argc, l %%argv) {\n");
     EMIT("@main.start\n");
+    EMIT("\tcall $pith_rt_init_args(w %%argc, l %%argv)\n");
 
     /* WPSSAC: every unit's top-level statements share the one $main */
     bool noted = false;
@@ -1763,15 +2292,27 @@ char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
         emit_scope_releases(g, g->scope);   /* end of script: release all */
     EMIT("\tret 0\n}\n");
 
-    /* WPSSAC zero-bloat: emit private functions that were referenced;
-       eliminate the rest. v0.1 has no call syntax, so private project
-       functions are never referenced and are all eliminated. */
+    /* WPSSAC zero-bloat: iteratively emit private functions that were referenced;
+       eliminate unreferenced ones. */
+    bool emitted_any;
+    do {
+        emitted_any = false;
+        for (size_t i = 0; i < g->pending_fn_count; i++) {
+            if (g->pending_fns[i].referenced && !g->pending_fns[i].emitted) {
+                emit_fn_body(g, &g->pending_fns[i]);
+                emitted_any = true;
+            }
+        }
+    } while (emitted_any);
+
     for (size_t i = 0; i < g->pending_fn_count; i++) {
-        note(g, g->pending_fns[i].node->loc,
-             pith_utf8_len(g->pending_fns[i].node->as.fn_decl.name,
-                           strlen(g->pending_fns[i].node->as.fn_decl.name)),
-             "private function is never referenced; eliminated "
-             "(zero-bloat)");
+        if (!g->pending_fns[i].referenced) {
+            note(g, g->pending_fns[i].node->loc,
+                 pith_utf8_len(g->pending_fns[i].node->as.fn_decl.name,
+                               strlen(g->pending_fns[i].node->as.fn_decl.name)),
+                 "private function is never referenced; eliminated "
+                 "(zero-bloat)");
+        }
     }
 
     cg_scope_pop(g);
@@ -1792,7 +2333,7 @@ char *pith_gen_qbe(ASTBlock **programs, size_t unit_count,
     StrBuf out;
     sb_init(&out);
     sb_put(&out, "# pith v" PITH_VERSION
-                 " — QBE SSA generated by pith (ARC on strings)\n");
+                 " - QBE SSA generated by pith (ARC on strings)\n");
     if (g->data.len > 0) {
         sb_put(&out, "\n");
         sb_putn(&out, g->data.buf, g->data.len);
