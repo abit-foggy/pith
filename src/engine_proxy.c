@@ -36,6 +36,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
 #include "../include/compiler.h"
 #include "../include/api.h"
@@ -103,6 +106,16 @@ static const char *self_path(void)
     ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (n > 0) {
         buf[n] = '\0';
+        return buf;
+    }
+#elif defined(__APPLE__)
+    uint32_t size = sizeof(buf);
+    if (_NSGetExecutablePath(buf, &size) == 0) {
+        char real[4096];
+        if (realpath(buf, real)) {
+            snprintf(buf, sizeof(buf), "%s", real);
+            return buf;
+        }
         return buf;
     }
 #endif
