@@ -26,7 +26,15 @@
 #include "../include/compiler.h"
 
 #ifdef _WIN32
+#define TokenType Win_TokenType
 #include <windows.h>
+#undef TokenType
+#ifndef TokenElevation
+#define TokenElevation ((TOKEN_INFORMATION_CLASS)20)
+typedef struct _TOKEN_ELEVATION {
+    DWORD TokenIsElevated;
+} TOKEN_ELEVATION;
+#endif
 #endif
 
 #define PKG_MAX_DEPS 128

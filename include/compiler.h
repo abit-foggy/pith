@@ -20,6 +20,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+#ifndef mkdir
+#define mkdir(p, m) _mkdir(p)
+#endif
+#endif
+
 #define PITH_VERSION "0.1.0"
 
 /* ------------------------------------------------------------------ */
