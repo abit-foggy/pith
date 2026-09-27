@@ -41,7 +41,7 @@ index 5d8d039..b84c640 100644
  static uint ntyp;
  
 +#include <setjmp.h>
-+extern jmp_buf *qbe_err_jmp;
++jmp_buf *qbe_err_jmp = NULL;
 +
  void
  err(char *s, ...)
@@ -80,7 +80,7 @@ index 0000000..c61c524
 +char debug['Z'+1];
 +
 +static FILE *outf;
-+jmp_buf *qbe_err_jmp = NULL;
++extern jmp_buf *qbe_err_jmp;
 +
 +static void data_cb(Dat *d)
 +{

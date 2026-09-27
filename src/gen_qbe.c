@@ -514,6 +514,7 @@ static const OsMember os_members[] = {
 
 static const OsMember proc_members[] = {
     { "exit",                   "$pith_rt_exit",              PITH_VALUE_ERROR,  1, { PITH_FFI_WORD } },
+    { "sleep",                  "$pith_rt_proc_sleep",         PITH_VALUE_ERROR,  1, { PITH_FFI_LONG } },
     { "argCount",               "$pith_rt_arg_count",         PITH_VALUE_INT,    0, {0} },
     { "getArg",                 "$pith_rt_get_arg",           PITH_VALUE_STRING, 1, { PITH_FFI_WORD } },
     { "getEnv",                 "$pith_rt_get_env",           PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
@@ -523,6 +524,8 @@ static const OsMember proc_members[] = {
 static const OsMember fs_members[] = {
     { "readFile",               "$pith_rt_file_read",         PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
     { "writeFile",              "$pith_rt_file_write",        PITH_VALUE_INT,    2, { PITH_FFI_LONG, PITH_FFI_LONG } },
+    { "exists",                 "$pith_rt_file_exists",       PITH_VALUE_BOOL,   1, { PITH_FFI_LONG } },
+    { "remove",                 "$pith_rt_file_remove",       PITH_VALUE_INT,    1, { PITH_FFI_LONG } },
 };
 
 static const OsMember net_members[] = {

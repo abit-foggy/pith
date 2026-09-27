@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Nightly build at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            triplet: x86_64-linux
+          - os: macos-latest
+            triplet: aarch64-darwin
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: build
+        run: |
+          make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
+
+      - name: test
+        run: |
+          make check
+
+      - name: package nightly artifact
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          STAGE="pith-${{ matrix.triplet }}-nightly"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith "$STAGE/pith"
+          install -m 0644 vendor/tcc/libtcc1.a "$STAGE/libtcc1.a" 2>/dev/null || true
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h \
+                    include/compiler.h include/pith_embed.h \
+                    "$STAGE/include/"
+          tar -czf "pith-${{ matrix.triplet }}-nightly.tar.gz" -C "$STAGE" .
+
+      - name: upload nightly artifact
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pith-${{ matrix.triplet }}-nightly
+          path: pith-${{ matrix.triplet }}-nightly.tar.gz

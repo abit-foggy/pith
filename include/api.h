@@ -96,11 +96,14 @@ int32_t pith_rt_arg_count(void);
 PithValue *pith_rt_get_arg(int32_t index);
 PithValue *pith_rt_get_env(PithValue *key);
 int32_t pith_rt_proc_pid(void);
+void pith_rt_proc_sleep(int64_t ms);
 void pith_rt_exit(int32_t code);
 
-/* File I/O */
+/* File I/O (fs.*) */
 PithValue *pith_rt_file_read(PithValue *path);
 int32_t pith_rt_file_write(PithValue *path, PithValue *content);
+int32_t pith_rt_file_exists(PithValue *path);
+int32_t pith_rt_file_remove(PithValue *path);
 
 /* ------------------------------------------------------------------ */
 /* Network primitives (runtime/network.c) - POSIX/Win32 stubs          */

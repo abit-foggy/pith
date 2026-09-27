@@ -13,7 +13,10 @@
 
 #include "../include/api.h"
 
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && \
+#if defined(_WIN32) || defined(_WIN64) || defined(__NT__)
+#include <windows.h>
+#define PITH_HAVE_WIN32_ATOMICS 1
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && \
     !defined(__STDC_NO_ATOMICS__)
 #include <stdatomic.h>
 #define PITH_HAVE_ATOMICS 1
@@ -22,7 +25,9 @@
 /* Current count. */
 static uint32_t refs_get(PithValue *v)
 {
-#if defined(PITH_HAVE_ATOMICS)
+#if defined(PITH_HAVE_WIN32_ATOMICS)
+    return (uint32_t)InterlockedCompareExchange((LONG volatile *)&v->strongRefs, 0, 0);
+#elif defined(PITH_HAVE_ATOMICS)
     return atomic_load_explicit(&v->strongRefs, memory_order_acquire);
 #else
     return __sync_fetch_and_add(&v->strongRefs, 0);
@@ -32,7 +37,9 @@ static uint32_t refs_get(PithValue *v)
 /* Increment; returns the new count. */
 static uint32_t refs_inc(PithValue *v)
 {
-#if defined(PITH_HAVE_ATOMICS)
+#if defined(PITH_HAVE_WIN32_ATOMICS)
+    return (uint32_t)InterlockedIncrement((LONG volatile *)&v->strongRefs);
+#elif defined(PITH_HAVE_ATOMICS)
     return atomic_fetch_add_explicit(&v->strongRefs, 1u,
                                      memory_order_relaxed) + 1u;
 #else
@@ -43,7 +50,9 @@ static uint32_t refs_inc(PithValue *v)
 /* Decrement; returns the PREVIOUS count. */
 static uint32_t refs_dec(PithValue *v)
 {
-#if defined(PITH_HAVE_ATOMICS)
+#if defined(PITH_HAVE_WIN32_ATOMICS)
+    return (uint32_t)InterlockedDecrement((LONG volatile *)&v->strongRefs) + 1u;
+#elif defined(PITH_HAVE_ATOMICS)
     return atomic_fetch_sub_explicit(&v->strongRefs, 1u,
                                       memory_order_acq_rel);
 #else

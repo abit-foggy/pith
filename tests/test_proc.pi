@@ -37,4 +37,9 @@ if root_pid > 0
     print "root.proc.pid: ok"
 end
 
+# 4. Sleep
+proc.sleep(10)
+root.proc.sleep(5)
+print "proc.sleep: ok"
+
 print "proc: done"
