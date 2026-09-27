@@ -856,7 +856,7 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
                      "%.*s_imp%zu.o", (int)base_len, obj_path, i);
 
             int ok = 0;
-#if defined(PITH_HAVE_LIBTCC)
+#if defined(PITH_USE_TCC)
             {
                 const char *tdir0 = pith_tcc_dir();
                 TCCState *cs = tcc_new();
@@ -956,7 +956,7 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
         }
     }
 #else
-#if defined(PITH_HAVE_LIBTCC)
+#if defined(PITH_USE_TCC)
     /* tcc is embedded: link in-process with its built-in ELF linker  - 
        no external linker or subprocess on this path. */
     {
