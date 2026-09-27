@@ -18,6 +18,7 @@
 
 # Built-in Tools & Performance
 - [Built-in Tools (fs, os, net)](namespaces.md)
+- [Standard Library Specification](stdlib-reference.md)
 - [Memory & Performance](runtime.md)
 
 # CLI & Tooling
