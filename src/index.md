@@ -1,29 +1,35 @@
-# The Pith Reference
+# Welcome to Pith
 
-Welcome to **The Pith Reference**, the official guide and documentation for the Pith programming language.
+**Pith** is a programming language designed to be dead simple to read and write.
 
-Pith is a dead-simple, bracketless systems-scripting language compiled directly to native machine code via QBE. It is designed to be immediately readable for beginners while giving systems developers uncompromising native control with zero garbage collection pauses.
+If you are new to programming, Pith is built for you: no curly braces `{}`, no semicolons `;`, and no confusing syntax. If you already know other languages, Pith gives you speed and simplicity without getting in your way.
+
+```pith
+# A simple Pith program
+name = "World"
+print "Hello, " + name
+
+mut count = 1
+while count <= 3
+    print "Count: " + count
+    count = count + 1
+end
+```
 
 ---
 
-## Core Tenets
+## Why Pith?
 
-- **Bracketless & Clean**: Blocks close with a single `end`. No semicolons, no braces, no boilerplate.
-- **Deterministic ARC**: Atomic 32-bit reference counts injected at lexical scope boundaries. Zero tracing GC, zero VM, zero pauses.
-- **Native via QBE**: Compiles to QBE intermediate language (WPSSAC), lowers to native machine code, and links with an embedded compiler or system linker.
-- **C Imports (FFI)**: Import C source files directly into your scripts with typed calls and leak-free ARC handoffs.
-- **Instant Feedback**: In-memory JIT execution via libtcc. Compile and run scripts in milliseconds.
-- **Interactive REPL**: A built-in interactive shell (`pith repl`) for testing expressions, exploring APIs, and prototyping functions.
-- **Embeddable**: Clean, pure C ABI host interface for integrating Pith into existing engines and native applications.
+- **Easy to Read**: Blocks close with a simple `end`. No braces, no semicolons, no clutter.
+- **Fast & Lightweight**: Pith compiles directly to fast machine code. There is no heavy virtual machine or garbage collector slowing things down.
+- **Helpful Errors**: When something goes wrong, Pith shows you exactly where the error is and how to fix it in plain English.
+- **Instant Testing**: Run scripts instantly with `pith run`, or experiment live in the terminal using `pith repl`.
 
 ---
 
-## Navigating This Book
+## Getting Started
 
-- **[Getting Started](getting-started/installation.md)**: Install Pith, run your first script, and configure your project workspace.
-- **[Language Reference](language/index.md)**: Comprehensive guide to Pith grammar, variables, types, operators, control flow, and functions.
-- **[Standard Runtime & Namespaces](namespaces.md)**: Explore builtin `os.*` tools and `net.*` TCP socket networking.
-- **[Runtime & Memory Model](runtime.md)**: Deep dive into deterministic ARC, reference cycles, and memory safety invariants.
-- **[CLI Reference](cli/run.md)**: Complete guide to CLI commands (`run`, `repl`, `build`, `decompile`, `pkg`, `engine`).
-- **[C Interop (FFI)](ffi.md)**: Directly import and call C functions from Pith scripts.
-- **[Embedding Pith](embed.md)**: Integrate the Pith runtime and compiler into your C/C++ applications.
+1. **[Installation](getting-started/installation.md)** — Download and install Pith in one command.
+2. **[Your First Script](getting-started/first-script.md)** — Write and run your first Pith program.
+3. **[Language Reference](language/index.md)** — Learn how variables, loops, and functions work.
+4. **[Built-in Tools](namespaces.md)** — Work with files, system info, and networking.

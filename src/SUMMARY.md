@@ -10,15 +10,15 @@
 # Language Reference
 - [Overview & Syntax](language/index.md)
 - [Variables & Mutability](language/variables.md)
-- [Types & Static Bounds](language/types.md)
-- [Expressions & Operators](language/expressions.md)
-- [Control Flow](language/control-flow.md)
-- [Functions & Calls](language/functions.md)
-- [Diagnostics & Error Catalog](language/diagnostics.md)
+- [Types of Data](language/types.md)
+- [Math & Logic](language/expressions.md)
+- [If Statements & Loops](language/control-flow.md)
+- [Functions](language/functions.md)
+- [Error Guide](language/diagnostics.md)
 
-# Standard Runtime & Namespaces
-- [Namespaces & Hierarchy](namespaces.md)
-- [Runtime & Memory Model](runtime.md)
+# Built-in Tools & Runtime
+- [System & Network Tools](namespaces.md)
+- [Memory & Cleanup](runtime.md)
 
 # CLI & Tooling
 - [pith run](cli/run.md)

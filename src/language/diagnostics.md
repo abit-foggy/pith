@@ -1,103 +1,87 @@
-# Diagnostics & Error Catalog
+# Common Errors & How to Fix Them
 
-Pith provides clear, rustc-inspired compiler diagnostics designed to help developers immediately pinpoint and fix issues.
-
----
-
-## Diagnostic Format
-
-Every diagnostic displays the severity level, explanatory message, file path, line and column numbers, a source snippet preview, and an indicator caret:
+When something in your code needs attention, Pith points directly to the line and explains the problem in plain English.
 
 ```text
-error: cannot assign twice to immutable variable `x` (declare with `mut` to reassign)
-  --> script.pi:3:1
+error: cannot assign twice to immutable variable `score` (declare with `mut` to reassign)
+  --> game.pi:3:1
    |
- 3 | x = 20
+ 3 | score = 20
    | ^
 ```
 
+Here are the most common errors and how to solve them:
+
 ---
 
-## Common Compiler Errors
-
-### 1. Reassigning Immutable Variable
+## 1. Changing a Variable Without `mut`
 
 ```text
-error: cannot assign twice to immutable variable `name` (declare with `mut` to reassign)
+error: cannot assign twice to immutable variable `x` (declare with `mut` to reassign)
 ```
-- **Cause**: Attempting to assign a new value to a variable that was declared without [`mut`](variables.md#the-mut-modifier).
-- **Fix**: Declare the variable with `mut name = ...` if its value needs to change.
 
-### 2. Loop Control Outside of a Loop
+- **What it means**: You created `x = 10` and later tried to change it to `x = 20`.
+- **How to fix it**: Add `mut` when you first create the variable:
+  ```pith
+  mut x = 10
+  x = 20    # Works!
+  ```
+
+---
+
+## 2. Using `break` or `continue` Outside a Loop
 
 ```text
 error: `break` outside of a loop
 error: `continue` outside of a loop
 ```
-- **Cause**: Using `break` or `continue` outside of a [`while`](control-flow.md#loop-controls-break-and-continue) block.
-- **Fix**: Ensure loop control statements are located inside a valid `while ... end` loop.
 
-### 3. Out-of-Range Literal
+- **What it means**: `break` and `continue` only make sense inside a loop.
+- **How to fix it**: Place `break` or `continue` inside a `while ... end` loop.
+
+---
+
+## 3. Using a Variable Before Creating It
+
+```text
+error: use of undeclared identifier `name`
+```
+
+- **What it means**: Pith doesn't recognize `name`.
+- **How to fix it**: Make sure you created the variable with `name = "..."` earlier in the code, or check for typos.
+
+---
+
+## 4. Multiple Commands on One Line
+
+```text
+error: expected end of line between statements
+```
+
+- **What it means**: You wrote two commands on the same line without pressing Enter.
+- **How to fix it**: Put each command on its own line:
+  ```pith
+  # Instead of: x = 10 y = 20
+  x = 10
+  y = 20
+  ```
+
+---
+
+## 5. Number Too Big for Sized Type
 
 ```text
 error: literal is out of range for type u8 (maximum value is 255)
-error: unsigned type u8 cannot hold a negative value
 ```
-- **Cause**: Assigning a literal value that exceeds the bit width or sign bounds of an [Explicit Type](types.md#static-bounds-checking).
-- **Fix**: Adjust the literal value or widen the type (e.g. to `u16` or `i32`).
 
-### 4. Nested Block Overflow
-
-```text
-error: block nesting is too deeply nested
-```
-- **Cause**: Nesting conditionals or loops beyond the compiler's safety guard (256 levels).
-- **Fix**: Refactor deep nesting into separate [Functions](functions.md).
-
-### 5. Undeclared Identifier
-
-```text
-error: use of undeclared identifier `variableName`
-```
-- **Cause**: Referencing an identifier that has not been defined in the current or parent scope.
-- **Fix**: Declare the variable with `name = value` before referencing it.
-
-### 6. Misplaced Import
-
-```text
-error: imports must be declared at the top level
-```
-- **Cause**: Placing an `import "file.c"` inside a function, `if`, or `while` block.
-- **Fix**: Move the import statement to the top level of your script file.
+- **What it means**: You gave a number larger than the maximum allowed by that type (like `val: u8 = 300`).
+- **How to fix it**: Use a smaller number, or remove the `: u8` to let Pith handle the size automatically.
 
 ---
 
-## Informational Notes
+## Helpful Notes
 
-The compiler also provides helpful informational notes during compilation:
+You may also see green or blue notes in the terminal:
 
-- **Dead Function Elimination**:
-  ```text
-  note: private function is never referenced; eliminated (zero-bloat)
-  ```
-  Informs you that an unreferenced function was removed to keep the binary small.
-
-- **Unreachable Code**:
-  ```text
-  note: unreachable exit path: function body always returns
-  ```
-  Informs you that all branches of a function return values, making any trailing statements unreachable.
-
-- **Namespace Overrides**:
-  ```text
-  note: alice.os.identifyKernel overrides os.identifyKernel
-  ```
-  Informs you that an imported C module has overridden a symbol in the active namespace view.
-
----
-
-## See Also
-
-- [Syntax Overview](index.md) — Fundamental language rules
-- [Variables & Mutability](variables.md) — Scope and mutation rules
-- [C Imports (FFI)](../ffi.md) — Importing and calling native C libraries
+- **`note: private function is never referenced; eliminated`**: Pith noticed a function you wrote was never called, so it left it out to keep your program lean and fast.
+- **`note: unreachable exit path`**: A function returns early before reaching subsequent lines.

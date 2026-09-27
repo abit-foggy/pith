@@ -196,20 +196,6 @@ Strict arity validation across both bare and call lookups:
 - Bare access to a zero-parameter member: called like a property
 - Calls: the argument count must match exactly
 
-## ARC at namespace boundaries
+## Memory Safety
 
-String members are ARC values: assigning one to a variable makes the
-variable an owner, and the value is released at scope exit. Using one
-directly (comparison, print) releases the temporary right after its
-single use.
-
-## Codegen
-
-Each imported function's symbols are renamed at C compile time to an
-author-aware mangled name (`c_<author>_<module>_<name>`), so:
-
-- The QBE calls reference the mangled name directly (no forwarding
-  shims)
-- The JIT registers the renamed symbol; duplicate exports across
-  imports never collide
-- The AOT object exports the mangled name; the link resolves exactly
+Strings returned by namespaces are managed automatically. You don't need to manually free or allocate memory when reading files, receiving network data, or checking the operating system.

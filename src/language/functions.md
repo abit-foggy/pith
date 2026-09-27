@@ -1,119 +1,93 @@
-# Functions & Calls
+# Functions
 
-Functions in Pith encapsulate reusable logic. They are declared with the `fn` keyword and closed with `end`.
+Functions let you group code into a reusable action so you don't have to repeat yourself.
 
 ---
 
-## Function Declarations
+## Creating a Function
 
-Functions are declared at the top level of a script:
+Use `fn`, followed by the function name, any inputs inside `( )`, and end the block with `end`:
 
 ```pith
 fn greet(name)
-    print "Hello, " + name
+    print "Hello, " + name + "!"
 end
+
+# Calling the function:
+greet("Alex")
+greet("Sam")
 ```
 
-### Parameters & Type Annotations
+Output:
+```text
+Hello, Alex!
+Hello, Sam!
+```
 
-Parameters are listed in parentheses following the function name:
+---
+
+## Returning Values with `return`
+
+A function can calculate something and send the answer back using `return`:
 
 ```pith
 fn add(a, b)
     return a + b
 end
 
-sum = add(10, 20)
-print sum           # 30
+total = add(10, 20)
+print total     # prints 30
 ```
 
-Parameters may optionally specify [Sized Types](types.md):
+You can also return early from inside an `if` statement:
 
 ```pith
-fn multiply(x: i32, y: i32)
-    return x * y
-end
-```
-
-Inside the function body, parameters act as local variables.
-
----
-
-## Returning Values
-
-The `return` statement exits the function and passes a value back to the caller:
-
-```pith
-fn getAnswer
-    return 42
-end
-
-val = getAnswer()
-```
-
-- A function can return early at any point.
-- If execution reaches the end of a function without an explicit `return`, it implicitly returns `0`.
-- The compiler statically detects when a function body always returns and notes unreachable exit paths.
-
----
-
-## Recursion
-
-Functions in Pith can call themselves recursively:
-
-```pith
-fn fib(n)
-    if n <= 1
-        return n
+fn check_age(age)
+    if age < 18
+        return "Minor"
     end
-    return fib(n - 1) + fib(n - 2)
+    return "Adult"
 end
 
-print fib(10)       # 55
+print check_age(21)     # prints "Adult"
 ```
-
-Each recursive call allocates a fresh native stack frame in machine memory with zero VM overhead.
 
 ---
 
-## Direct Calls vs Native C Imports
+## Functions Calling Themselves (Recursion)
 
-- **User Functions**: Called directly by identifier name (`add(10, 20)` or `greet("Alice")`).
-- **Imported C Functions**: Called via their module namespace (`math.addInts(3, 4)`). See [C Imports (FFI)](../ffi.md).
+A function can call itself to break down a bigger problem:
 
 ```pith
-import "ffi/math.c"
-
-fn doubleValue(x)
-    return math.addInts(x, x)
+fn countdown(n)
+    if n <= 0
+        print "Blast off!"
+        return 0
+    end
+    print n
+    return countdown(n - 1)
 end
 
-print doubleValue(21)   # 42
+countdown(3)
+```
+
+Output:
+```text
+3
+2
+1
+Blast off!
 ```
 
 ---
 
-## Zero-Bloat Dead Function Elimination
+## Clean & Fast
 
-Pith enforces a strict **zero-bloat** principle. During whole-program compilation (WPSSAC), the compiler inspects which functions are referenced by the script's execution path.
-
-If a private function is declared but never called, Pith eliminates it entirely from the generated QBE IR and emits an informational note:
-
-```text
-note: private function is never referenced; eliminated (zero-bloat)
-  --> script.pi:2:1
-   |
- 2 | fn unusedHelper
-   | ^~~~~~~~~~~~~~~
-```
-
-This ensures that binaries stay lean, fast, and completely free of unused dead code.
+If you write a function but never end up using it, Pith automatically skips it when building your program so it never slows your app down or wastes space.
 
 ---
 
 ## See Also
 
-- [Variables & Mutability](variables.md) — Scope rules for local variables and parameters
-- [Types & Static Bounds](types.md) — Sized parameter types
-- [C Imports (FFI)](../ffi.md) — Interfacing with native C functions
-- [CLI Reference](../cli/repl.md) — Prototyping functions interactively in the REPL
+- [Variables & Mutability](variables.md) — How variables work inside functions
+- [If Statements & Loops](control-flow.md) — Using conditions inside functions
