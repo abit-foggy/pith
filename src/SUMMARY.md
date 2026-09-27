@@ -33,3 +33,6 @@
 # Native Interop
 - [C Imports (FFI)](ffi.md)
 - [Embeddable C ABI](embed.md)
+
+# Acknowledgements
+- [Special Thanks](thanks.md)
