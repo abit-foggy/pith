@@ -89,7 +89,7 @@ jobs:
 
           # 3a. x86_64-windows
           make clean
-          make -j"$(nproc)" CC="x86_64-w64-mingw32-clang" AR="x86_64-w64-mingw32-ar" PITH=pith.exe LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0 -D_WIN32" LDFLAGS="-lkernel32 -ladvapi32"
+          make -j"$(nproc)" CC="x86_64-w64-mingw32-clang" AR="x86_64-w64-mingw32-ar" PITH=pith.exe LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0 -D_WIN32" POSIXDEF="" LDFLAGS="-lkernel32 -ladvapi32"
           STAGE="pith-x86_64-windows-nightly"
           mkdir -p "$STAGE/include"
           install -m 0755 pith.exe "$STAGE/pith.exe"
@@ -103,7 +103,7 @@ jobs:
 
           # 3b. aarch64-windows
           make clean
-          make -j"$(nproc)" CC="aarch64-w64-mingw32-clang" AR="aarch64-w64-mingw32-ar" PITH=pith.exe LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0 -D_WIN32" LDFLAGS="-lkernel32 -ladvapi32"
+          make -j"$(nproc)" CC="aarch64-w64-mingw32-clang" AR="aarch64-w64-mingw32-ar" PITH=pith.exe LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0 -D_WIN32" POSIXDEF="" LDFLAGS="-lkernel32 -ladvapi32"
           STAGE="pith-aarch64-windows-nightly"
           mkdir -p "$STAGE/include"
           install -m 0755 pith.exe "$STAGE/pith.exe"
