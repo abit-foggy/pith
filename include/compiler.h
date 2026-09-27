@@ -26,6 +26,18 @@
 #ifndef mkdir
 #define mkdir(p, m) _mkdir(p)
 #endif
+#ifndef WIFEXITED
+#define WIFEXITED(st) (((st) & 0x7f) == 0)
+#endif
+#ifndef WEXITSTATUS
+#define WEXITSTATUS(st) ((st) & 0xff)
+#endif
+#ifndef WIFSIGNALED
+#define WIFSIGNALED(st) (0)
+#endif
+#ifndef WTERMSIG
+#define WTERMSIG(st) (0)
+#endif
 #endif
 
 #define PITH_VERSION "0.1.0"
