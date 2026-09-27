@@ -33,7 +33,7 @@ index a7c4cfe..3f43373 100644
  config.h:
  	@case `uname` in                               \
 diff --git a/parse.c b/parse.c
-index 5d8d039..b84c640 100644
+index 5d8d039..ccfb3dd 100644
 --- a/parse.c
 +++ b/parse.c
 @@ -173,6 +173,9 @@ static int nblk;
@@ -57,11 +57,16 @@ index 5d8d039..b84c640 100644
  
 diff --git a/qbe_embed.c b/qbe_embed.c
 new file mode 100644
-index 0000000..c61c524
+index 0000000..f174a68
 --- /dev/null
 +++ b/qbe_embed.c
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,214 @@
++#ifdef _WIN32
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#else
 +#define _POSIX_C_SOURCE 200809L
++#endif
 +#include "all.h"
 +#include "config.h"
 +#include "qbe_embed.h"
@@ -165,21 +170,41 @@ index 0000000..c61c524
 +		return NULL;
 +
 +	char *buf = NULL;
-+	size_t sz = 0;
 +
 +	T = Deftgt;
 +
++#ifdef _WIN32
++	char tmp_dir[MAX_PATH];
++	char tmp_out[MAX_PATH];
++	if (!GetTempPathA(sizeof(tmp_dir), tmp_dir))
++		strcpy(tmp_dir, ".");
++	if (GetTempFileNameA(tmp_dir, "qbe_out", 0, tmp_out) == 0)
++		return NULL;
++	outf = fopen(tmp_out, "w+b");
++	if (!outf) {
++		remove(tmp_out);
++		return NULL;
++	}
++#else
++	size_t sz = 0;
 +	outf = open_memstream(&buf, &sz);
 +	if (!outf)
 +		return NULL;
++#endif
 +
 +	jmp_buf jb;
 +	qbe_err_jmp = &jb;
 +	if (setjmp(jb) != 0) {
 +		qbe_err_jmp = NULL;
-+		fclose(outf);
++		if (outf) {
++			fclose(outf);
++			outf = NULL;
++		}
++#ifdef _WIN32
++		remove(tmp_out);
++#else
 +		free(buf);
-+		outf = NULL;
++#endif
 +		return NULL;
 +	}
 +
@@ -187,8 +212,25 @@ index 0000000..c61c524
 +
 +	T.emitfin(outf);
 +
++#ifdef _WIN32
++	fflush(outf);
++	fseek(outf, 0, SEEK_END);
++	long out_sz = ftell(outf);
++	fseek(outf, 0, SEEK_SET);
++	if (out_sz < 0)
++		out_sz = 0;
++	buf = malloc(out_sz + 1);
++	if (buf) {
++		size_t read_bytes = fread(buf, 1, out_sz, outf);
++		buf[read_bytes] = '\0';
++	}
 +	fclose(outf);
 +	outf = NULL;
++	remove(tmp_out);
++#else
++	fclose(outf);
++	outf = NULL;
++#endif
 +	qbe_err_jmp = NULL;
 +	return buf;
 +}
@@ -200,6 +242,30 @@ index 0000000..c61c524
 +	if (ssa_len == 0)
 +		ssa_len = strlen(ssa_text);
 +
++#ifdef _WIN32
++	char tmp_dir[MAX_PATH];
++	char tmp_in[MAX_PATH];
++	if (!GetTempPathA(sizeof(tmp_dir), tmp_dir))
++		strcpy(tmp_dir, ".");
++	if (GetTempFileNameA(tmp_dir, "qbe_in", 0, tmp_in) == 0)
++		return NULL;
++	FILE *inf = fopen(tmp_in, "wb");
++	if (!inf) {
++		remove(tmp_in);
++		return NULL;
++	}
++	fwrite(ssa_text, 1, ssa_len, inf);
++	fclose(inf);
++	inf = fopen(tmp_in, "rb");
++	if (!inf) {
++		remove(tmp_in);
++		return NULL;
++	}
++	char *res = qbe_compile_file(inf, "pith.ssa");
++	fclose(inf);
++	remove(tmp_in);
++	return res;
++#else
 +	FILE *inf = fmemopen((void *)ssa_text, ssa_len, "r");
 +	if (!inf)
 +		return NULL;
@@ -207,6 +273,7 @@ index 0000000..c61c524
 +	char *res = qbe_compile_file(inf, "pith.ssa");
 +	fclose(inf);
 +	return res;
++#endif
 +}
 diff --git a/qbe_embed.h b/qbe_embed.h
 new file mode 100644
