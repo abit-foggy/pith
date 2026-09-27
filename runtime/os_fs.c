@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "../include/api.h"
 
@@ -175,6 +176,20 @@ int32_t pith_rt_proc_pid(void)
 #endif
 }
 
+void pith_rt_proc_sleep(int64_t ms)
+{
+    if (ms <= 0)
+        return;
+#if defined(_WIN32) || defined(_WIN64) || defined(__NT__)
+    Sleep((DWORD)ms);
+#else
+    struct timespec ts;
+    ts.tv_sec = ms / 1000;
+    ts.tv_nsec = (ms % 1000) * 1000000L;
+    nanosleep(&ts, NULL);
+#endif
+}
+
 void pith_rt_exit(int32_t code)
 {
     exit((int)code);
@@ -235,3 +250,35 @@ int32_t pith_rt_file_write(PithValue *path, PithValue *content)
     fclose(f);
     return written == content->length ? 1 : 0;
 }
+
+int32_t pith_rt_file_exists(PithValue *path)
+{
+    if (!path || path->length == 0)
+        return 0;
+    char p[4096];
+    size_t len = path->length < sizeof(p) - 1 ? path->length : sizeof(p) - 1;
+    memcpy(p, path->data, len);
+    p[len] = '\0';
+#if defined(_WIN32) || defined(_WIN64) || defined(__NT__)
+    DWORD attr = GetFileAttributesA(p);
+    return (attr != INVALID_FILE_ATTRIBUTES) ? 1 : 0;
+#else
+    return access(p, F_OK) == 0 ? 1 : 0;
+#endif
+}
+
+int32_t pith_rt_file_remove(PithValue *path)
+{
+    if (!path || path->length == 0)
+        return 0;
+    char p[4096];
+    size_t len = path->length < sizeof(p) - 1 ? path->length : sizeof(p) - 1;
+    memcpy(p, path->data, len);
+    p[len] = '\0';
+#if defined(_WIN32) || defined(_WIN64) || defined(__NT__)
+    return DeleteFileA(p) ? 1 : 0;
+#else
+    return unlink(p) == 0 ? 1 : 0;
+#endif
+}
+

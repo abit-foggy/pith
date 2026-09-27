@@ -16,6 +16,19 @@ if root_content == "pith file io works!"
     print "root.fs: ok"
 end
 
+if fs.exists("tests/test_scratch.txt")
+    print "exists: ok"
+end
+
+rm_ok = fs.remove("tests/test_scratch.txt")
+if rm_ok == 1
+    print "remove: ok"
+end
+
+if fs.exists("tests/test_scratch.txt") == 0
+    print "removed: ok"
+end
+
 # 2. Environment variables
 env_val = os.getEnv("PATH")
 if env_val != ""
