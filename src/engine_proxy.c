@@ -45,6 +45,12 @@
 #include "../include/compiler.h"
 #include "../include/api.h"
 
+#ifdef _WIN32
+#define TokenType Win_TokenType
+#include <windows.h>
+#undef TokenType
+#endif
+
 #if defined(PITH_HAVE_LIBTCC) && PITH_HAVE_LIBTCC && !defined(__APPLE__)
 #define PITH_USE_TCC 1
 #include <libtcc.h>
