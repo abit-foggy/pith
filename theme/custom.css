@@ -281,3 +281,66 @@ kbd {
 button, input, select, textarea {
     border-radius: 0 !important;
 }
+
+/* --------------------------------------------------------------------------
+   Menu Bar & Icon Buttons (Perfect Vertical Alignment)
+   -------------------------------------------------------------------------- */
+
+#mdbook-menu-bar {
+    display: flex;
+    align-items: center;
+    height: var(--menu-bar-height);
+}
+
+.left-buttons,
+.right-buttons {
+    display: flex !important;
+    align-items: center !important;
+    height: var(--menu-bar-height) !important;
+}
+
+#mdbook-menu-bar .icon-button,
+#mdbook-menu-bar .right-buttons a {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: var(--menu-bar-height) !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--icons) !important;
+    font-family: inherit !important;
+    font-size: 1.8rem !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: color 0.2s ease;
+}
+
+#mdbook-menu-bar .icon-button:hover,
+#mdbook-menu-bar .right-buttons a:hover {
+    color: var(--icons-hover) !important;
+}
+
+#mdbook-menu-bar .fa-svg {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 1em !important;
+    height: 1em !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+    font-size: inherit !important;
+}
+
+#mdbook-menu-bar .fa-svg svg {
+    display: block !important;
+    width: 1em !important;
+    height: 1em !important;
+    margin: 0 !important;
+    fill: currentColor !important;
+}
+
