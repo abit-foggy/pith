@@ -24,12 +24,20 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#ifndef _WIN32
 #include <sys/wait.h>
+#endif
 
 #include "../include/compiler.h"
 #include "../include/api.h"
 
-#if defined(PITH_HAVE_LIBTCC) && !defined(__APPLE__)
+#ifdef _WIN32
+#define TokenType Win_TokenType
+#include <windows.h>
+#undef TokenType
+#endif
+
+#if defined(PITH_HAVE_LIBTCC) && PITH_HAVE_LIBTCC && !defined(__APPLE__)
 #include <libtcc.h>
 #endif
 
@@ -988,7 +996,7 @@ static int cmd_build(const char **paths, size_t count,
         snprintf(pobj, sizeof(pobj), "%s", obj_path);
 
         int asm_ok = 0;
-#if !defined(__APPLE__) && defined(PITH_HAVE_LIBTCC)
+#if !defined(__APPLE__) && defined(PITH_HAVE_LIBTCC) && PITH_HAVE_LIBTCC
         {
             TCCState *cs = tcc_new();
             if (cs) {

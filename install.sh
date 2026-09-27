@@ -61,15 +61,41 @@ fetch() {
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
+is_macos=0
 
-case "$OS:$ARCH" in
-    Linux:x86_64)        TRIPLET="x86_64-linux" ;;
-    Linux:aarch64)       TRIPLET="aarch64-linux" ;;
-    Linux:arm64)         TRIPLET="aarch64-linux" ;;
-    Darwin:x86_64)       TRIPLET="x86_64-darwin" ;;
-    Darwin:arm64)        TRIPLET="aarch64-darwin" ;;
-    FreeBSD:amd64)       TRIPLET="x86_64-freebsd" ;;
-    FreeBSD:aarch64)     TRIPLET="aarch64-freebsd" ;;
+case "$OS" in
+    Linux)
+        case "$ARCH" in
+            x86_64)          TRIPLET="x86_64-linux" ;;
+            aarch64|arm64)   TRIPLET="aarch64-linux" ;;
+            *) die "unsupported Linux architecture: $ARCH (build from source instead)" ;;
+        esac
+        ;;
+    Darwin)
+        if command -v sw_vers >/dev/null 2>&1 || [ -d /System/Library/CoreServices ]; then
+            is_macos=1
+        fi
+        if [ "$is_macos" -eq 1 ]; then
+            case "$ARCH" in
+                arm64|aarch64) TRIPLET="aarch64-macos" ;;
+                x86_64|amd64)  TRIPLET="x86_64-macos" ;;
+                *) die "unsupported macOS architecture: $ARCH (build from source instead)" ;;
+            esac
+        else
+            # Darwin without macOS (e.g. PureDarwin)
+            case "$ARCH" in
+                x86_64|amd64)  TRIPLET="x86_64-darwin" ;;
+                *) die "unsupported Darwin architecture: $ARCH (build from source instead)" ;;
+            esac
+        fi
+        ;;
+    FreeBSD)
+        case "$ARCH" in
+            amd64|x86_64)    TRIPLET="x86_64-freebsd" ;;
+            aarch64|arm64)   TRIPLET="aarch64-freebsd" ;;
+            *) die "unsupported FreeBSD architecture: $ARCH (build from source instead)" ;;
+        esac
+        ;;
     *) die "unsupported platform: $OS $ARCH (build from source instead)" ;;
 esac
 
@@ -82,7 +108,7 @@ say "detected $OS ($ARCH) -> pith-$TRIPLET"
 # macOS (not generic Darwin): the Apple toolchain assembles and links;
 # the Xcode command line utilities provide clang and the SDK. Offer to
 # install them when missing (the installer prompts for the password).
-if [ "$OS" = "Darwin" ]; then
+if [ "$is_macos" -eq 1 ]; then
     if ! xcode-select -p >/dev/null 2>&1; then
         say "the Xcode command line utilities are not installed"
         printf 'install.sh: install them now? [y/N] '

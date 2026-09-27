@@ -35,7 +35,9 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifndef _WIN32
 #include <sys/wait.h>
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -43,7 +45,7 @@
 #include "../include/compiler.h"
 #include "../include/api.h"
 
-#if defined(PITH_HAVE_LIBTCC) && !defined(__APPLE__)
+#if defined(PITH_HAVE_LIBTCC) && PITH_HAVE_LIBTCC && !defined(__APPLE__)
 #define PITH_USE_TCC 1
 #include <libtcc.h>
 #endif
@@ -848,7 +850,7 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
           Darwin: clang's assembler */
     {
         int asm_ok = 0;
-#if !defined(__APPLE__) && defined(PITH_HAVE_LIBTCC)
+#if !defined(__APPLE__) && defined(PITH_HAVE_LIBTCC) && PITH_HAVE_LIBTCC
         {
             const char *tdir0 = pith_tcc_dir();
             TCCState *cs = tcc_new();
@@ -1147,7 +1149,7 @@ const char *engine_aot_linker_name(void)
 {
 #ifdef __APPLE__
     return "mold (via the compiler driver)";
-#elif defined(PITH_HAVE_LIBTCC)
+#elif defined(PITH_HAVE_LIBTCC) && PITH_HAVE_LIBTCC
     return "tcc (embedded, in-process)";
 #else
     return "tcc (from PATH) or system linker";

@@ -18,7 +18,9 @@ $Tag = if ($env:PITH_TAG) { $env:PITH_TAG } else { "nightly" }
 
 Write-Host "install-nightly.ps1: installing $Tag"
 
-$Arch = if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { "i386" }
+$Arch = if ([Environment]::Is64BitOperatingSystem) {
+    if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "aarch64" } else { "x86_64" }
+} else { "i386" }
 $Tarball = "pith-$Arch-windows-nt-nightly.tar.gz"
 $Url = "https://github.com/$Repo/releases/download/$Tag/$Tarball"
 $FallbackTarball = "pith-$Arch-windows-nt.tar.gz"

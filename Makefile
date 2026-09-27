@@ -14,6 +14,7 @@
 # ------------------------------------------------------------------
 
 CC = cc
+AR = ar
 CFLAGS = -std=c99 -O2 -Wall -Wextra -Wno-unused-parameter -Iinclude
 LDFLAGS =
 POSIXDEF = -D_POSIX_C_SOURCE=200809L
@@ -53,13 +54,15 @@ $(PITH): $(PITH_OBJS) $(RUNTIME_OBJS) $(LIBTCC) $(LIBQBE)
 # extract/list archives, which breaks static library builds).
 # Detection runs inside the recipe shell; no $(shell) is used.
 $(RUNTIME_LIB): $(RUNTIME_OBJS)
-	AR_BIN=""; \
-	for a in /usr/bin/ar `command -v x86_64-linux-gnu-ar` `command -v llvm-ar`; do \
-		if [ -n "$$a" ] && $$a --version 2>/dev/null | head -n 1 | grep -qE 'GNU ar|LLVM'; then \
-			AR_BIN=$$a; \
-			break; \
-		fi; \
-	done; \
+	AR_BIN="$(AR)"; \
+	if [ "$$AR_BIN" = "ar" ] || [ -z "$$AR_BIN" ]; then \
+		for a in /usr/bin/ar `command -v x86_64-linux-gnu-ar` `command -v llvm-ar`; do \
+			if [ -n "$$a" ] && $$a --version 2>/dev/null | head -n 1 | grep -qE 'GNU ar|LLVM'; then \
+				AR_BIN=$$a; \
+				break; \
+			fi; \
+		done; \
+	fi; \
 	if [ -z "$$AR_BIN" ]; then \
 		AR_BIN=ar; \
 	fi; \
@@ -90,18 +93,20 @@ vendor/qbe/.pith-patched: patches/qbe-embed.patch vendor/qbe/parse.c
 	fi
 
 $(LIBQBE): vendor/qbe/.pith-patched
-	AR_BIN=""; \
-	for a in /usr/bin/ar `command -v x86_64-linux-gnu-ar` `command -v llvm-ar`; do \
-		if [ -n "$$a" ] && $$a --version 2>/dev/null | head -n 1 | grep -qE 'GNU ar|LLVM'; then \
-			AR_BIN=$$a; \
-			break; \
-		fi; \
-	done; \
+	AR_BIN="$(AR)"; \
+	if [ "$$AR_BIN" = "ar" ] || [ -z "$$AR_BIN" ]; then \
+		for a in /usr/bin/ar `command -v x86_64-linux-gnu-ar` `command -v llvm-ar`; do \
+			if [ -n "$$a" ] && $$a --version 2>/dev/null | head -n 1 | grep -qE 'GNU ar|LLVM'; then \
+				AR_BIN=$$a; \
+				break; \
+			fi; \
+		done; \
+	fi; \
 	if [ -z "$$AR_BIN" ]; then \
 		AR_BIN=ar; \
 	fi; \
 	AR_DIR=`dirname "$$AR_BIN"`; \
-	cd $(VENDOR_QBE) && PATH="$$AR_DIR:$$PATH" $(MAKE) libqbe.a
+	cd $(VENDOR_QBE) && PATH="$$AR_DIR:$$PATH" $(MAKE) CC="$(CC)" AR="$$AR_BIN" libqbe.a
 
 $(VENDOR_QBE)/qbe: vendor/qbe/.pith-patched
 	cd $(VENDOR_QBE) && $(MAKE) qbe
@@ -290,8 +295,10 @@ test-darwin: $(PITH) $(VENDOR_QBE)/qbe
 	@sh scripts/test_darwin.sh
 
 clean:
-	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
+	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) pith.exe test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
 	rm -rf restored_workspace .pith
+	-cd $(VENDOR_QBE) && $(MAKE) clean
+	rm -f $(VENDOR_QBE)/libqbe.a
 
 distclean: clean
 	-cd $(VENDOR_TCC) && $(MAKE) clean

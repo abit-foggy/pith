@@ -20,11 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            triplet: x86_64-linux
-          - os: macos-latest
-            triplet: aarch64-darwin
+        os: [ ubuntu-latest, macos-latest ]
 
     steps:
       - name: checkout
@@ -55,25 +51,116 @@ jobs:
         run: |
           make test-darwin
 
-      - name: package nightly artifact
-        if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      - name: package linux and windows nightly artifacts
+        if: (github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.os == 'ubuntu-latest'
         run: |
-          STAGE="pith-${{ matrix.triplet }}-nightly"
+          mkdir -p dist
+
+          # 1. x86_64-linux (already built)
+          STAGE="pith-x86_64-linux-nightly"
           mkdir -p "$STAGE/include"
           install -m 0755 pith "$STAGE/pith"
           install -m 0644 vendor/tcc/libtcc1.a "$STAGE/libtcc1.a" 2>/dev/null || true
           install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
-          install -m 0644 include/pith.h include/api.h \
-                    include/compiler.h include/pith_embed.h \
-                    "$STAGE/include/"
-          tar -czf "pith-${{ matrix.triplet }}-nightly.tar.gz" -C "$STAGE" .
+          install -m 0644 include/pith.h include/api.h include/compiler.h include/pith_embed.h "$STAGE/include/"
+          tar -czf "dist/pith-x86_64-linux-nightly.tar.gz" -C "$STAGE" .
+          cp "dist/pith-x86_64-linux-nightly.tar.gz" "dist/pith-x86_64-linux.tar.gz"
+          rm -rf "$STAGE"
 
-      - name: upload nightly artifact
+          # 2. aarch64-linux cross-compilation
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu
+          make clean
+          make -j"$(nproc)" CC="aarch64-linux-gnu-gcc" AR="aarch64-linux-gnu-ar" PITH=pith LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0"
+          STAGE="pith-aarch64-linux-nightly"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith "$STAGE/pith"
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h include/compiler.h include/pith_embed.h "$STAGE/include/"
+          tar -czf "dist/pith-aarch64-linux-nightly.tar.gz" -C "$STAGE" .
+          cp "dist/pith-aarch64-linux-nightly.tar.gz" "dist/pith-aarch64-linux.tar.gz"
+          rm -rf "$STAGE"
+
+          # 3. Windows cross-compilation via llvm-mingw (x86_64 and aarch64)
+          LLVM_MINGW_URL="https://github.com/mstorsjo/llvm-mingw/releases/download/20260922/llvm-mingw-20260922-ucrt-ubuntu-22.04-x86_64.tar.xz"
+          curl -fsSL "$LLVM_MINGW_URL" -o /tmp/llvm-mingw.tar.xz
+          sudo mkdir -p /opt/llvm-mingw
+          sudo tar -xf /tmp/llvm-mingw.tar.xz -C /opt/llvm-mingw --strip-components=1
+          export PATH="/opt/llvm-mingw/bin:$PATH"
+
+          # 3a. x86_64-windows
+          make clean
+          make -j"$(nproc)" CC="x86_64-w64-mingw32-clang" AR="x86_64-w64-mingw32-ar" PITH=pith.exe LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0 -D_WIN32" LDFLAGS="-lkernel32 -ladvapi32"
+          STAGE="pith-x86_64-windows-nightly"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith.exe "$STAGE/pith.exe"
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h include/compiler.h include/pith_embed.h "$STAGE/include/"
+          tar -czf "dist/pith-x86_64-windows-nt-nightly.tar.gz" -C "$STAGE" .
+          cp "dist/pith-x86_64-windows-nt-nightly.tar.gz" "dist/pith-x86_64-windows-nightly.tar.gz"
+          cp "dist/pith-x86_64-windows-nt-nightly.tar.gz" "dist/pith-x86_64-windows-nt.tar.gz"
+          cp "dist/pith-x86_64-windows-nt-nightly.tar.gz" "dist/pith-x86_64-windows.tar.gz"
+          rm -rf "$STAGE"
+
+          # 3b. aarch64-windows
+          make clean
+          make -j"$(nproc)" CC="aarch64-w64-mingw32-clang" AR="aarch64-w64-mingw32-ar" PITH=pith.exe LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0 -D_WIN32" LDFLAGS="-lkernel32 -ladvapi32"
+          STAGE="pith-aarch64-windows-nightly"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith.exe "$STAGE/pith.exe"
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h include/compiler.h include/pith_embed.h "$STAGE/include/"
+          tar -czf "dist/pith-aarch64-windows-nt-nightly.tar.gz" -C "$STAGE" .
+          cp "dist/pith-aarch64-windows-nt-nightly.tar.gz" "dist/pith-aarch64-windows-nightly.tar.gz"
+          cp "dist/pith-aarch64-windows-nt-nightly.tar.gz" "dist/pith-aarch64-windows-nt.tar.gz"
+          cp "dist/pith-aarch64-windows-nt-nightly.tar.gz" "dist/pith-aarch64-windows.tar.gz"
+          rm -rf "$STAGE"
+
+      - name: package macos and darwin nightly artifacts
+        if: (github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.os == 'macos-latest'
+        run: |
+          mkdir -p dist
+
+          # 1. aarch64-macos (already built natively)
+          codesign -s - pith 2>/dev/null || true
+          STAGE="pith-aarch64-macos-nightly"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith "$STAGE/pith"
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h include/compiler.h include/pith_embed.h "$STAGE/include/"
+          tar -czf "dist/pith-aarch64-macos-nightly.tar.gz" -C "$STAGE" .
+          cp "dist/pith-aarch64-macos-nightly.tar.gz" "dist/pith-aarch64-macos.tar.gz"
+          rm -rf "$STAGE"
+
+          # 2. x86_64-macos
+          make clean
+          make -j"$(sysctl -n hw.ncpu)" CC="clang -arch x86_64" AR="ar" PITH=pith LIBTCC="" TCC_LINK="" TCC_CFLAGS="-DPITH_HAVE_LIBTCC=0"
+          codesign -s - pith 2>/dev/null || true
+          STAGE="pith-x86_64-macos-nightly"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith "$STAGE/pith"
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h include/compiler.h include/pith_embed.h "$STAGE/include/"
+          tar -czf "dist/pith-x86_64-macos-nightly.tar.gz" -C "$STAGE" .
+          cp "dist/pith-x86_64-macos-nightly.tar.gz" "dist/pith-x86_64-macos.tar.gz"
+          rm -rf "$STAGE"
+
+          # 3. x86_64-darwin (pure Darwin without codesigning or macOS specifics)
+          codesign --remove-signature pith 2>/dev/null || true
+          STAGE="pith-x86_64-darwin-nightly"
+          mkdir -p "$STAGE/include"
+          install -m 0755 pith "$STAGE/pith"
+          install -m 0644 runtime/libruntime.a "$STAGE/libruntime.a"
+          install -m 0644 include/pith.h include/api.h include/compiler.h include/pith_embed.h "$STAGE/include/"
+          tar -czf "dist/pith-x86_64-darwin-nightly.tar.gz" -C "$STAGE" .
+          cp "dist/pith-x86_64-darwin-nightly.tar.gz" "dist/pith-x86_64-darwin.tar.gz"
+          rm -rf "$STAGE"
+
+      - name: upload nightly artifacts
         if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: pith-${{ matrix.triplet }}-nightly
-          path: pith-${{ matrix.triplet }}-nightly.tar.gz
+          name: artifacts-${{ matrix.os }}
+          path: dist/*.tar.gz
 
   release:
     name: publish nightly release
