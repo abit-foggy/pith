@@ -6,6 +6,11 @@ set -e
 TMP_DIR=$(mktemp -d /tmp/pith_darwin_XXXXXX)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+if [ ! -x "vendor/qbe/qbe" ]; then
+    echo "test-darwin: vendor/qbe/qbe not found, building..."
+    (cd vendor/qbe && make qbe)
+fi
+
 echo "--> Decompiling tests/test_os_net.pi to QBE SSA IR..."
 ./pith decompile tests/test_os_net.pi > "$TMP_DIR/test_darwin.ssa"
 

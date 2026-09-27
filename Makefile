@@ -103,6 +103,9 @@ $(LIBQBE): vendor/qbe/.pith-patched
 	AR_DIR=`dirname "$$AR_BIN"`; \
 	cd $(VENDOR_QBE) && PATH="$$AR_DIR:$$PATH" $(MAKE) libqbe.a
 
+$(VENDOR_QBE)/qbe: vendor/qbe/.pith-patched
+	cd $(VENDOR_QBE) && $(MAKE) qbe
+
 # ------------------------------------------------------------------
 # Vendored tcc (libtcc)
 # ------------------------------------------------------------------
@@ -280,10 +283,10 @@ check test: all
 	fi
 	@echo "all checks passed (workspace clean)"
 
-test-wine: $(PITH)
+test-wine: $(PITH) $(VENDOR_QBE)/qbe
 	@sh scripts/test_wine.sh
 
-test-darwin: $(PITH)
+test-darwin: $(PITH) $(VENDOR_QBE)/qbe
 	@sh scripts/test_darwin.sh
 
 clean:

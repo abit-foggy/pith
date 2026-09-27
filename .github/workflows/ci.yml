@@ -55,7 +55,7 @@ jobs:
           make test-darwin
 
       - name: package nightly artifact
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           STAGE="pith-${{ matrix.triplet }}-nightly"
           mkdir -p "$STAGE/include"
@@ -68,8 +68,51 @@ jobs:
           tar -czf "pith-${{ matrix.triplet }}-nightly.tar.gz" -C "$STAGE" .
 
       - name: upload nightly artifact
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: pith-${{ matrix.triplet }}-nightly
           path: pith-${{ matrix.triplet }}-nightly.tar.gz
+
+  release:
+    name: publish nightly release
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -name "*.tar.gz" -exec cp {} release-assets/ \;
+          cd release-assets
+          sha256sum *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: publish to github release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: nightly
+          name: "Pith Nightly Build"
+          prerelease: true
+          draft: false
+          make_latest: false
+          body: |
+            Automated rolling nightly build for Pith.
+
+            Updated automatically from the `main` branch.
+
+            ### Verification
+            Verify downloaded archive integrity using the included `SHA256SUMS.txt`:
+            ```bash
+            sha256sum -c SHA256SUMS.txt
+            ```
+          files: |
+            release-assets/*

@@ -14,6 +14,11 @@ if [ ! -x "$WIN_TCC" ]; then
     (cd vendor/tcc && make cross)
 fi
 
+if [ ! -x "vendor/qbe/qbe" ]; then
+    echo "test-wine: vendor/qbe/qbe not found, building..."
+    (cd vendor/qbe && make qbe)
+fi
+
 WIN_LIBTCC1="vendor/tcc/x86_64-win32-libtcc1.a"
 if [ ! -f "$WIN_LIBTCC1" ]; then
     echo "test-wine: $WIN_LIBTCC1 not found, building..."
