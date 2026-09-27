@@ -151,5 +151,5 @@ Notice that `Processing item: 3` was skipped completely!
 
 Now that you can guide your code's decisions and repeat actions:
 
-- **[Functions](functions.md)** — Learn how to bundle your code into reusable actions
-- **[Math & Logic](expressions.md)** — Combine conditions with `and`, `or`, and `not`
+- **[Functions](functions.md)**: Learn how to bundle your code into reusable actions
+- **[Math & Logic](expressions.md)**: Combine conditions with `and`, `or`, and `not`

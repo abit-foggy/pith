@@ -3,9 +3,9 @@
 Pith comes packed with powerful built-in tools right out of the box. You don't have to install heavy third-party packages or write dozens of lines of boilerplate just to read a file, check the operating system, or connect over a network.
 
 These built-in tools are organized into **namespaces**:
-- **`fs`** — Read, write, and manage files
-- **`os`** — Check system details, read environment variables, and get command-line arguments
-- **`net`** — Send and receive data over TCP networks
+- **`fs`**: Read, write, and manage files
+- **`os`**: Check system details, read environment variables, and get command-line arguments
+- **`net`**: Send and receive data over TCP networks
 
 ---
 

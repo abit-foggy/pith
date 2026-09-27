@@ -18,7 +18,7 @@ my_game/
 └── dist/            # Where built apps go (optional)
 ```
 
-You don't need complicated build systems or endless configuration files—just a folder, your `.pi` scripts, and an optional `pith.toml`.
+You don't need complicated build systems or endless configuration files: just a folder, your `.pi` scripts, and an optional `pith.toml`.
 
 ---
 
@@ -143,5 +143,5 @@ Your files are cleanly restored to `./restored_workspace/`. It's like having sou
 
 Now that your project is organized:
 
-- **[Built-in Tools](../namespaces.md)** — Read and write files (`fs`), inspect the computer (`os`), and connect to sockets (`net`)
-- **[Interactive REPL](../cli/repl.md)** — Try out Pith commands live in your terminal
+- **[Built-in Tools](../namespaces.md)**: Read and write files (`fs`), inspect the computer (`os`), and connect to sockets (`net`)
+- **[Interactive REPL](../cli/repl.md)**: Try out Pith commands live in your terminal

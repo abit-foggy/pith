@@ -154,7 +154,7 @@ You now know how to write scripts, store variables, make decisions, repeat actio
 
 Here are great places to explore next:
 
-- **[Variables & Mutability](../language/variables.md)** — Learn how variables and `mut` work in depth
-- **[Functions](../language/functions.md)** — Break your code into reusable actions
-- **[Working with Files & Network](../namespaces.md)** — Read files, save data, and connect to servers
-- **[Setting Up a Project](project-setup.md)** — Organize larger projects with multiple files
+- **[Variables & Mutability](../language/variables.md)**: Learn how variables and `mut` work in depth
+- **[Functions](../language/functions.md)**: Break your code into reusable actions
+- **[Working with Files & Network](../namespaces.md)**: Read files, save data, and connect to servers
+- **[Setting Up a Project](project-setup.md)**: Organize larger projects with multiple files

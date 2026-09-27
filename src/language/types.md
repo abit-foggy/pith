@@ -1,6 +1,6 @@
 # Tutorial: Working with Data Types
 
-Every computer program works with data—whether it's keeping track of a player's score, greeting a user by name, or checking if a setting is switched on or off.
+Every computer program works with data: whether it's keeping track of a player's score, greeting a user by name, or checking if a setting is switched on or off.
 
 In Pith, you don't have to wrestle with complicated type declarations. You just write your value, and Pith figures out the type automatically!
 
@@ -21,7 +21,7 @@ temperature = -4    # Negative numbers work just as easily!
 ```
 
 ### Decimals (Floating-Point Numbers)
-When you need to measure something with precision—like money or percentages—add a decimal point:
+When you need to measure something with precision (like money or percentages), add a decimal point:
 
 ```pith
 price = 19.99
@@ -124,5 +124,5 @@ score: u8 = 500     # Error: 500 is too large for u8 (max is 255)
 
 Now that you know what kinds of values you can work with:
 
-- **[Math & Logic](expressions.md)** — Learn how to add, compare, and check conditions
-- **[If Statements & Loops](control-flow.md)** — Guide how your program makes choices
+- **[Math & Logic](expressions.md)**: Learn how to add, compare, and check conditions
+- **[If Statements & Loops](control-flow.md)**: Guide how your program makes choices

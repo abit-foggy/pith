@@ -53,7 +53,7 @@ By default, every variable in Pith is **immutable** (meaning *unchangeable*). Th
 
 ## Step 3: Making Variables Changeable with `mut`
 
-What if you *do* want a variable to change—like when a player scores points, or when you are counting items in a loop?
+What if you *do* want a variable to change (like when a player scores points, or when you are counting items in a loop)?
 
 Just put the word `mut` (short for *mutable*, or changeable) in front of the variable name when you first create it.
 
@@ -120,6 +120,6 @@ You never have to manage memory, free pointers, or wait on a sluggish garbage co
 
 Now that you know how to save and change information, let's explore what kinds of data you can store:
 
-- **[Types of Data](types.md)** — Numbers, text, and true/false conditions
-- **[Math & Logic](expressions.md)** — Adding numbers, comparing values, and logic
-- **[If Statements & Loops](control-flow.md)** — Making choices and repeating code
+- **[Types of Data](types.md)**: Numbers, text, and true/false conditions
+- **[Math & Logic](expressions.md)**: Adding numbers, comparing values, and logic
+- **[If Statements & Loops](control-flow.md)**: Making choices and repeating code

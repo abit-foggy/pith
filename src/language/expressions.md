@@ -138,5 +138,5 @@ end
 
 Now that you can calculate and compare values:
 
-- **[If Statements & Loops](control-flow.md)** — Put your comparisons to work in real programs
-- **[Functions](functions.md)** — Package calculations into reusable actions
+- **[If Statements & Loops](control-flow.md)**: Put your comparisons to work in real programs
+- **[Functions](functions.md)**: Package calculations into reusable actions

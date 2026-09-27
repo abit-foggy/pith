@@ -107,5 +107,5 @@ In Pith, functions run at native machine speed. Even better: if you write helper
 
 Now you have mastered the core foundations of Pith!
 
-- **[Working with Built-in Tools](../namespaces.md)** — Learn how to read and write files (`fs`), inspect the system (`os`), and connect to networks (`net`)
-- **[Setting Up a Project](../getting-started/project-setup.md)** — Organize code into multiple files with `pith.toml`
+- **[Working with Built-in Tools](../namespaces.md)**: Learn how to read and write files (`fs`), inspect the system (`os`), and connect to networks (`net`)
+- **[Setting Up a Project](../getting-started/project-setup.md)**: Organize code into multiple files with `pith.toml`

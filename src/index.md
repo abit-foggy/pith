@@ -39,7 +39,7 @@ end
 
 ## Getting Started
 
-1. **[Installation](getting-started/installation.md)** — Download and install Pith in one command.
-2. **[Your First Script](getting-started/first-script.md)** — Follow our step-by-step beginner tutorial.
-3. **[Language Reference](language/index.md)** — Learn how variables, loops, and functions work.
-4. **[Built-in Tools](namespaces.md)** — Work with files (`fs`), system info (`os`), and networking (`net`).
+1. **[Installation](getting-started/installation.md)**: Download and install Pith in one command.
+2. **[Your First Script](getting-started/first-script.md)**: Follow our step-by-step beginner tutorial.
+3. **[Language Reference](language/index.md)**: Learn how variables, loops, and functions work.
+4. **[Built-in Tools](namespaces.md)**: Work with files (`fs`), system info (`os`), and networking (`net`).

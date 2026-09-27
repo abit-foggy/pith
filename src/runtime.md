@@ -28,7 +28,7 @@ In game development and audio processing, even a 10-millisecond pause can ruin t
 Pith programs only use the exact amount of memory they need at any given moment. They don't require hundreds of megabytes of RAM just to start up.
 
 ### 3. Native Machine Code
-When you run `pith build`, Pith produces a real binary tailored to your processor. It doesn't run inside an emulated virtual machine—it runs directly on the metal for top-tier speed.
+When you run `pith build`, Pith produces a real binary tailored to your processor. It doesn't run inside an emulated virtual machine; it runs directly on the metal for top-tier speed.
 
 ---
 

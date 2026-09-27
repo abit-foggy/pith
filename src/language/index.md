@@ -60,9 +60,9 @@ To include special characters:
 
 ## Detailed Chapters
 
-- **[Variables & Mutability](variables.md)** — Storing values with `=` and changing them with `mut`.
-- **[Types of Data](types.md)** — Working with numbers, text, and true/false values.
-- **[Math & Logic](expressions.md)** — Adding numbers, comparing values, and using `and`, `or`, `not`.
-- **[If Statements & Loops](control-flow.md)** — Making decisions with `if` and repeating code with `while`.
-- **[Functions](functions.md)** — Grouping code into reusable actions with `fn`.
-- **[Error Guide](diagnostics.md)** — How to read and fix common mistakes.
+- **[Variables & Mutability](variables.md)**: Storing values with `=` and changing them with `mut`.
+- **[Types of Data](types.md)**: Working with numbers, text, and true/false values.
+- **[Math & Logic](expressions.md)**: Adding numbers, comparing values, and using `and`, `or`, `not`.
+- **[If Statements & Loops](control-flow.md)**: Making decisions with `if` and repeating code with `while`.
+- **[Functions](functions.md)**: Grouping code into reusable actions with `fn`.
+- **[Error Guide](diagnostics.md)**: How to read and fix common mistakes.
