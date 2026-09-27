@@ -26,7 +26,7 @@ echo install-nightly.cmd: installing %TAG%
 set "ARCH=x86_64"
 if "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=aarch64"
 
-set "TARBALL=pith-%ARCH%-windows-nt-nightly.tar.gz"
+set "TARBALL=pith-%ARCH%-windows-nightly.tar.gz"
 set "URL=https://github.com/%REPO%/releases/download/%TAG%/%TARBALL%"
 
 set "TMPDIR=%TEMP%\pith-install-%RANDOM%"
@@ -39,8 +39,8 @@ if defined GH_TOKEN if not defined AUTH_HEADER set "AUTH_HEADER=-H "Authorizatio
 
 curl -fsSL -H "User-Agent: pith-installer" %AUTH_HEADER% "%URL%" -o "%TMPDIR%\%TARBALL%" 2>nul
 if errorlevel 1 (
-    set "FALLBACK_URL=https://github.com/%REPO%/releases/download/%TAG%/pith-%ARCH%-windows-nt.tar.gz"
-    echo install-nightly.cmd: trying pith-%ARCH%-windows-nt.tar.gz
+    set "FALLBACK_URL=https://github.com/%REPO%/releases/download/%TAG%/pith-%ARCH%-windows-nt-nightly.tar.gz"
+    echo install-nightly.cmd: trying pith-%ARCH%-windows-nt-nightly.tar.gz
     curl -fsSL -H "User-Agent: pith-installer" %AUTH_HEADER% "!FALLBACK_URL!" -o "%TMPDIR%\%TARBALL%" 2>nul
     if errorlevel 1 (
         where gh >nul 2>nul
@@ -48,7 +48,7 @@ if errorlevel 1 (
             echo install-nightly.cmd: trying gh release download
             gh release download %TAG% -R %REPO% -p %TARBALL% -O "%TMPDIR%\%TARBALL%" >nul 2>nul
             if errorlevel 1 (
-                gh release download %TAG% -R %REPO% -p pith-%ARCH%-windows-nt.tar.gz -O "%TMPDIR%\%TARBALL%" >nul 2>nul
+                gh release download %TAG% -R %REPO% -p pith-%ARCH%-windows-nt-nightly.tar.gz -O "%TMPDIR%\%TARBALL%" >nul 2>nul
             )
         )
     )
