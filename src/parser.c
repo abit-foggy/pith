@@ -757,6 +757,7 @@ static ASTNode *parse_assignment(Parser *p, bool is_mut)
                 v->sized_type = PITH_SIZED_AUTO;
             }
             if (strcmp(name->lexeme, "os") == 0 ||
+                strcmp(name->lexeme, "proc") == 0 ||
                 strcmp(name->lexeme, "fs") == 0 ||
                 strcmp(name->lexeme, "net") == 0) {
                 char msg[128];

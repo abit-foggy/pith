@@ -512,6 +512,14 @@ static const OsMember os_members[] = {
     { "getArg",                 "$pith_rt_get_arg",           PITH_VALUE_STRING, 1, { PITH_FFI_WORD } },
 };
 
+static const OsMember proc_members[] = {
+    { "exit",                   "$pith_rt_exit",              PITH_VALUE_ERROR,  1, { PITH_FFI_WORD } },
+    { "argCount",               "$pith_rt_arg_count",         PITH_VALUE_INT,    0, {0} },
+    { "getArg",                 "$pith_rt_get_arg",           PITH_VALUE_STRING, 1, { PITH_FFI_WORD } },
+    { "getEnv",                 "$pith_rt_get_env",           PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
+    { "pid",                    "$pith_rt_proc_pid",          PITH_VALUE_INT,    0, {0} },
+};
+
 static const OsMember fs_members[] = {
     { "readFile",               "$pith_rt_file_read",         PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
     { "writeFile",              "$pith_rt_file_write",        PITH_VALUE_INT,    2, { PITH_FFI_LONG, PITH_FFI_LONG } },
@@ -530,6 +538,14 @@ static const OsMember *os_member_find(const char *name)
     for (size_t i = 0; i < sizeof(os_members) / sizeof(os_members[0]); i++)
         if (strcmp(os_members[i].member, name) == 0)
             return &os_members[i];
+    return NULL;
+}
+
+static const OsMember *proc_member_find(const char *name)
+{
+    for (size_t i = 0; i < sizeof(proc_members) / sizeof(proc_members[0]); i++)
+        if (strcmp(proc_members[i].member, name) == 0)
+            return &proc_members[i];
     return NULL;
 }
 
@@ -554,6 +570,11 @@ static const OsMember *net_member_find(const char *name)
 int pith_os_member_exists(const char *name)
 {
     return os_member_find(name) != NULL;
+}
+
+int pith_proc_member_exists(const char *name)
+{
+    return proc_member_find(name) != NULL;
 }
 
 int pith_fs_member_exists(const char *name)
@@ -765,6 +786,13 @@ static NsResolved ns_resolve(Codegen *g, const char *ns_path,
                     r.om = om;
                     return r;
                 }
+            } else if (strcmp(module, "proc") == 0) {
+                const OsMember *pm = proc_member_find(member);
+                if (pm) {
+                    r.kind = NS_FOUND_BUILTIN;
+                    r.om = pm;
+                    return r;
+                }
             } else if (strcmp(module, "fs") == 0) {
                 const OsMember *fm = fs_member_find(member);
                 if (fm) {
@@ -818,6 +846,13 @@ static NsResolved ns_resolve(Codegen *g, const char *ns_path,
         if (om) {
             r.kind = NS_FOUND_BUILTIN;
             r.om = om;
+            return r;
+        }
+    } else if (strcmp(ns_path, "proc") == 0) {
+        const OsMember *pm = proc_member_find(member);
+        if (pm) {
+            r.kind = NS_FOUND_BUILTIN;
+            r.om = pm;
             return r;
         }
     } else if (strcmp(ns_path, "fs") == 0) {
@@ -1216,8 +1251,8 @@ static ExprResult gen_member_access(Codegen *g, ASTNode *n)
     if (!path[0]) {
         cg_error(g, m->base->loc, 2,
                  "unknown namespace in member access "
-                 "(namespaces are `os.*`, `root.*`, or imported "
-                 "modules)", "");
+                 "(namespaces are `os.*`, `proc.*`, `fs.*`, `net.*`, "
+                 "`root.*`, or imported modules)", "");
         return expr_dummy();
     }
     const char *member = m->member;

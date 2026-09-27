@@ -475,6 +475,7 @@ PithFfiType pith_cffi_map_type(const char *type_text,
 /* Does the builtin os namespace expose `name`? (public: used by the
    import discovery for override warnings) */
 int pith_os_member_exists(const char *name);
+int pith_proc_member_exists(const char *name);
 int pith_fs_member_exists(const char *name);
 int pith_net_member_exists(const char *name);
 

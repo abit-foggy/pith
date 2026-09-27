@@ -11,6 +11,8 @@ test_while
 test_logical
 test_fn_call
 test_os_net
+test_proc
+test_proc_exit
 tests/test_scratch.txt
 tests/gen_*.pi
 tests/harness/arc_stress

@@ -1,0 +1,40 @@
+# test_proc.pi - Tests for proc.* namespace
+
+# 1. Environment variables
+env_val = proc.getEnv("PATH")
+if env_val != ""
+    print "proc.env: ok"
+end
+
+root_env = root.proc.getEnv("PATH")
+if root_env != ""
+    print "root.proc.env: ok"
+end
+
+# 2. CLI arguments
+argc = proc.argCount
+if argc >= 0
+    print "proc.argc: ok"
+end
+
+argc_call = proc.argCount()
+if argc_call >= 0
+    print "proc.argc_call: ok"
+end
+
+arg0 = proc.getArg(0)
+# arg0 may be empty or script path, shouldn't crash
+print "proc.arg0: ok"
+
+# 3. Process ID
+pid = proc.pid
+if pid > 0
+    print "proc.pid: ok"
+end
+
+root_pid = root.proc.pid
+if root_pid > 0
+    print "root.proc.pid: ok"
+end
+
+print "proc: done"
