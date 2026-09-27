@@ -278,6 +278,12 @@ check test: all
 	fi
 	@echo "all checks passed (workspace clean)"
 
+test-wine: $(PITH)
+	@sh scripts/test_wine.sh
+
+test-darwin: $(PITH)
+	@sh scripts/test_darwin.sh
+
 clean:
 	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
 	rm -rf restored_workspace .pith
@@ -291,5 +297,7 @@ distclean: clean
 help:
 	@echo "make           build the pith binary and runtime"
 	@echo "make check     build and run the verification tests"
+	@echo "make test-wine run Windows cross-compilation and Wine test suite"
+	@echo "make test-darwin run Darwin Mach-O cross-compilation test suite"
 	@echo "make clean     remove build artifacts"
 	@echo "make distclean also clean the vendored tcc build"
