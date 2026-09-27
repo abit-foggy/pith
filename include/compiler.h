@@ -38,6 +38,28 @@
 #ifndef WTERMSIG
 #define WTERMSIG(st) (0)
 #endif
+#ifndef realpath
+#define realpath(N, R) _fullpath((R), (N), 4096)
+#endif
+#ifndef mkstemp
+static inline int pith_mkstemp(char *tmpl) {
+    char *p = _mktemp(tmpl);
+    if (!p) return -1;
+    FILE *fp = fopen(p, "w+b");
+    if (!fp) return -1;
+    return _fileno(fp);
+}
+#define mkstemp(t) pith_mkstemp(t)
+#endif
+#ifndef mkdtemp
+static inline char *pith_mkdtemp(char *tmpl) {
+    char *p = _mktemp(tmpl);
+    if (!p) return NULL;
+    if (_mkdir(p) != 0) return NULL;
+    return p;
+}
+#define mkdtemp(t) pith_mkdtemp(t)
+#endif
 #endif
 
 #define PITH_VERSION "0.1.0"

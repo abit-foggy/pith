@@ -120,6 +120,11 @@ static const char *self_path(void)
         }
         return buf;
     }
+#elif defined(_WIN32)
+    DWORD n = GetModuleFileNameA(NULL, buf, sizeof(buf));
+    if (n > 0 && n < sizeof(buf)) {
+        return buf;
+    }
 #endif
     return NULL;
 }
@@ -133,6 +138,10 @@ static const char *self_dir(void)
     static char dir[4096];
     snprintf(dir, sizeof(dir), "%s", sp);
     char *slash = strrchr(dir, '/');
+#ifdef _WIN32
+    if (!slash)
+        slash = strrchr(dir, '\\');
+#endif
     if (!slash)
         return NULL;
     *slash = '\0';
