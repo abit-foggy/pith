@@ -337,6 +337,7 @@ static char *compile_frontend(const char **paths, size_t count,
 
                         /* informational: per-symbol overrides of builtin namespaces */
                         int is_builtin_ns = (strcmp(imp->ns, "os") == 0 ||
+                                             strcmp(imp->ns, "proc") == 0 ||
                                              strcmp(imp->ns, "fs") == 0 ||
                                              strcmp(imp->ns, "net") == 0);
                         if (is_builtin_ns) {
@@ -344,6 +345,8 @@ static char *compile_frontend(const char **paths, size_t count,
                                 int exists = 0;
                                 if (strcmp(imp->ns, "os") == 0)
                                     exists = pith_os_member_exists(imp->fns[f].name);
+                                else if (strcmp(imp->ns, "proc") == 0)
+                                    exists = pith_proc_member_exists(imp->fns[f].name);
                                 else if (strcmp(imp->ns, "fs") == 0)
                                     exists = pith_fs_member_exists(imp->fns[f].name);
                                 else if (strcmp(imp->ns, "net") == 0)
@@ -374,6 +377,7 @@ static char *compile_frontend(const char **paths, size_t count,
                     }
 
                     if (strcmp(imports[nimports - 1].ns, "os") == 0 ||
+                        strcmp(imports[nimports - 1].ns, "proc") == 0 ||
                         strcmp(imports[nimports - 1].ns, "fs") == 0 ||
                         strcmp(imports[nimports - 1].ns, "net") == 0) {
                         char msg[256];

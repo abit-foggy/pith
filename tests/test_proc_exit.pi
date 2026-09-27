@@ -1,0 +1,3 @@
+# test_proc_exit.pi - Tests proc.exit(42) terminates with code 42
+proc.exit(42)
+print "FAIL: should have exited"

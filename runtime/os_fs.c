@@ -14,6 +14,9 @@
 
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <sys/utsname.h>
+#include <unistd.h>
+#else
+#include <windows.h>
 #endif
 
 static PithValue *rt_str(const char *cstr)
@@ -161,6 +164,15 @@ PithValue *pith_rt_get_env(PithValue *key)
     if (!val)
         return rt_str("");
     return rt_str(val);
+}
+
+int32_t pith_rt_proc_pid(void)
+{
+#if defined(_WIN32) || defined(_WIN64) || defined(__NT__)
+    return (int32_t)GetCurrentProcessId();
+#else
+    return (int32_t)getpid();
+#endif
 }
 
 void pith_rt_exit(int32_t code)

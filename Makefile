@@ -196,6 +196,17 @@ check test: all
 	@! ./test_os_net | grep -q BROKEN
 	./test_os_net | grep -q "os_net: done"
 	@rm -f test_os_net tests/test_scratch.txt
+	# [BUILTINS] proc.* namespace (JIT, AOT, and exit code)
+	@! ./pith run tests/test_proc.pi 2>/dev/null | grep -q BROKEN
+	./pith run tests/test_proc.pi 2>/dev/null | grep -q "proc: done"
+	./pith build tests/test_proc.pi
+	@! ./test_proc | grep -q BROKEN
+	./test_proc | grep -q "proc: done"
+	@rm -f test_proc
+	@./pith run tests/test_proc_exit.pi >/dev/null 2>&1; test $$? -eq 42
+	./pith build tests/test_proc_exit.pi
+	@./test_proc_exit >/dev/null 2>&1; test $$? -eq 42
+	@rm -f test_proc_exit
 	# [REPL] interactive execution and session persistence
 	@printf 'x = 10\nx + 5\nexit\n' | ./pith repl 2>/dev/null | grep -q "15"
 	# [FFI] native C import pipeline: JIT and AOT paths
@@ -251,7 +262,7 @@ check test: all
 	cd /tmp/opencode/pith_check && HOME=/tmp/opencode/pith_check "$$OLDPWD/pith" pkg sync | grep -q "verified"
 	# cleanup invariants: nothing the suite created may survive it
 	@rm -rf /tmp/opencode/pith_check
-	@for f in test_audit test_ffi test_while test_logical test_fn_call test_os_net tests/test_scratch.txt pith.lock tests/gen_deep_blocks.pi tests/gen_deep_over.pi tests/gen_deep_parens.pi tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0; do \
+	@for f in test_audit test_ffi test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt pith.lock tests/gen_deep_blocks.pi tests/gen_deep_over.pi tests/gen_deep_parens.pi tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0; do \
 		if [ -e "$$f" ]; then \
 			echo "check: residue left behind: $$f" >&2; \
 			exit 1; \
@@ -268,7 +279,7 @@ check test: all
 	@echo "all checks passed (workspace clean)"
 
 clean:
-	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
+	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
 	rm -rf restored_workspace .pith
 
 distclean: clean

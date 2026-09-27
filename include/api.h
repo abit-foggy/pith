@@ -90,11 +90,12 @@ void pith_rt_print(PithValue *str);
 void pith_rt_print_int(int64_t val);
 void pith_rt_print_bool(int32_t val);
 
-/* Process & Environment */
+/* Process & Environment (proc.*) */
 void pith_rt_init_args(int argc, char **argv);
 int32_t pith_rt_arg_count(void);
 PithValue *pith_rt_get_arg(int32_t index);
 PithValue *pith_rt_get_env(PithValue *key);
+int32_t pith_rt_proc_pid(void);
 void pith_rt_exit(int32_t code);
 
 /* File I/O */

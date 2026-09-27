@@ -454,6 +454,7 @@ static const RuntimeSymbol runtime_syms[] = {
     { "pith_rt_arg_count",         (const void *)pith_rt_arg_count         },
     { "pith_rt_get_arg",           (const void *)pith_rt_get_arg           },
     { "pith_rt_get_env",           (const void *)pith_rt_get_env           },
+    { "pith_rt_proc_pid",          (const void *)pith_rt_proc_pid          },
     { "pith_rt_exit",              (const void *)pith_rt_exit              },
     { "pith_rt_file_read",         (const void *)pith_rt_file_read         },
     { "pith_rt_file_write",        (const void *)pith_rt_file_write        },
