@@ -36,6 +36,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #ifndef _WIN32
+#include <signal.h>
 #include <sys/wait.h>
 #endif
 #ifdef __APPLE__
@@ -795,10 +796,14 @@ static int run_tcc(const char *asm_path, const RuntimeSymbol *extra_syms,
 
 /*
  * Fallback / Darwin path: link a temporary executable with the system
- * compiler driver and execute it immediately.
+ * compiler driver and execute it immediately. `prebuilt_objs` are
+ * host-registered objects (embed contexts) joined at the link so
+ * host functions resolve in the child process too.
  */
 static int run_temp_exec(const char *asm_path,
-                         const PithImportUnit *imports, size_t nimports)
+                         const PithImportUnit *imports, size_t nimports,
+                         const char *const *prebuilt_objs,
+                         size_t nprebuilt)
 {
     char rtlib[4096];
     if (!engine_find_runtime_lib(rtlib, sizeof(rtlib))) {
@@ -814,26 +819,41 @@ static int run_temp_exec(const char *asm_path,
         return -1;
 
     if (engine_build_aot(asm_path, obj_path, exe_path, rtlib,
-                         imports, nimports, NULL, 0) != 0) {
+                         imports, nimports, prebuilt_objs,
+                         nprebuilt) != 0) {
         unlink(obj_path);
         return -1;
     }
 
-    int rc = run_cmd(exe_path);
+    int st = system(exe_path);
     unlink(obj_path);
     unlink(exe_path);
-    if (rc < 0)
+    if (st == -1)
         return -1;
-    return rc == 256 ? 255 : (rc > 255 ? rc - 256 : rc);
+    if (WIFSIGNALED(st)) {
+        /* the script died by a signal: die by the same one so the
+           fallback path preserves the in-memory execution semantics
+           (e.g. a deterministic SIGFPE on division by zero surfaces
+           as a signal, not as an exit code) */
+        signal(WTERMSIG(st), SIG_DFL);
+        raise(WTERMSIG(st));
+    }
+    if (WIFEXITED(st))
+        return WEXITSTATUS(st);
+    return -1;
 }
 
 int engine_dispatch_run(const char *asm_src, const char *asm_path,
                         const RuntimeSymbol *extra_syms, size_t nextra,
-                        const PithImportUnit *imports, size_t nimports)
+                        const PithImportUnit *imports, size_t nimports,
+                        const char *const *prebuilt_objs,
+                        size_t nprebuilt)
 {
     (void)asm_src;   /* the assembly file at asm_path is what we run */
 
 #ifdef PITH_USE_TCC
+    /* in-memory execution binds the host-registered symbols
+       directly; the prebuilt objects are not needed here */
     int rc = run_tcc(asm_path, extra_syms, nextra, imports, nimports);
     if (rc >= 0)
         return rc;
@@ -841,7 +861,8 @@ int engine_dispatch_run(const char *asm_src, const char *asm_path,
                     "temp-executable path\n");
 #endif
 
-    return run_temp_exec(asm_path, imports, nimports);
+    return run_temp_exec(asm_path, imports, nimports, prebuilt_objs,
+                         nprebuilt);
 }
 
 /* ------------------------------------------------------------------ */
@@ -977,8 +998,13 @@ int engine_build_aot(const char *asm_path, const char *obj_path,
             }
             nimp_objs++;
         }
+    }
 
-        /* " \"p1\" \"p2\" ..." for the subprocess linkers */
+    /* " \"p1\" \"p2\" ..." for the subprocess linkers. The compiled
+       import objects and the host-registered prebuilt objects are
+       assembled here even when there are no imports: embed contexts
+       pass prebuilt objects with an empty import list. */
+    {
         size_t at = 0;
         for (size_t i = 0; i < nimp_objs; i++) {
             int w = snprintf(imp_args + at, sizeof(imp_args) - at,

@@ -255,7 +255,24 @@ check test: all
 	./tests/harness/tar_security
 	$(CC) $(POSIXDEF) -std=c99 -O2 tests/harness/div0.c -o tests/harness/div0
 	./tests/harness/div0 ./pith tests/codegen_div0.pi
-	@rm -f tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0
+	# [EMBED] the embeddable C ABI: typed host registration on both
+	# execution backends (in-memory tcc and the temp-executable
+	# fallback, which links the renamed host object)
+	$(CC) $(POSIXDEF) -std=c99 -O2 -Iinclude \
+		-Dseven=c_host_seven -Dtwice=c_host_twice -Dwide=c_host_wide \
+		-Dnote=c_host_note -Dtag=c_host_tag \
+		-c tests/harness/embed_host_impl.c -o tests/harness/embed_host_impl.o
+	$(CC) $(POSIXDEF) -std=c99 -O2 \
+		-Dseven=c_host_seven -Dtwice=c_host_twice -Dwide=c_host_wide \
+		-Dnote=c_host_note -Dtag=c_host_tag \
+		tests/harness/embed_host.c \
+		src/lexer.o src/parser.o src/gen_qbe.o src/engine_proxy.o \
+		src/pith_embed.o src/tar.o src/config.o src/cffi.o \
+		runtime/memory.o runtime/os_fs.o runtime/network.o \
+		tests/harness/embed_host_impl.o \
+		$(LIBQBE) $(LIBTCC) -ldl -o tests/harness/embed_host
+	./tests/harness/embed_host tests/harness/embed_host_impl.o
+	@rm -f tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/harness/embed_host tests/harness/embed_host_impl.o
 	# [ENGINE]/[PACKAGE] sandboxed in a throwaway HOME: nothing may
 	# leak into the real user home or the project tree
 	@rm -rf /tmp/opencode/pith_check
@@ -272,7 +289,7 @@ check test: all
 	cd /tmp/opencode/pith_check && HOME=/tmp/opencode/pith_check "$$OLDPWD/pith" pkg sync | grep -q "verified"
 	# cleanup invariants: nothing the suite created may survive it
 	@rm -rf /tmp/opencode/pith_check
-	@for f in test_audit test_ffi test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt pith.lock tests/gen_deep_blocks.pi tests/gen_deep_over.pi tests/gen_deep_parens.pi tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0; do \
+	@for f in test_audit test_ffi test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt pith.lock tests/gen_deep_blocks.pi tests/gen_deep_over.pi tests/gen_deep_parens.pi tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/harness/embed_host tests/harness/embed_host_impl.o; do \
 		if [ -e "$$f" ]; then \
 			echo "check: residue left behind: $$f" >&2; \
 			exit 1; \
@@ -295,7 +312,7 @@ test-darwin: $(PITH) $(VENDOR_QBE)/qbe
 	@sh scripts/test_darwin.sh
 
 clean:
-	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) pith.exe test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/gen_*.pi pith.lock
+	rm -f $(PITH_OBJS) $(RUNTIME_OBJS) $(RUNTIME_LIB) $(PITH) pith.exe test_audit test_ffi test_types test_while test_logical test_fn_call test_os_net test_proc test_proc_exit tests/test_scratch.txt tests/harness/arc_stress tests/harness/arc_cycle tests/harness/tar_security tests/harness/div0 tests/harness/embed_host tests/harness/embed_host_impl.o tests/gen_*.pi pith.lock
 	rm -rf restored_workspace .pith
 	-cd $(VENDOR_QBE) && $(MAKE) clean
 	rm -f $(VENDOR_QBE)/libqbe.a

@@ -74,3 +74,9 @@ Adversarial findings documented here:
 Hardening added alongside these tests (in `src/tar.c`): ustar magic
 verification, path-component validation before any filesystem access,
 and declared-size sanity against the actual buffer.
+
+## DOMAIN 5 - embeddable C ABI
+
+| Path | Category | Expected behavior |
+|---|---|---|
+| `harness/embed_host.c` | [EMBED] | typed host registration (`pith_register_ns_fn`): a zero-arg pseudo-constant, `w`/`l` calls, a `v` statement call, and an owned `p` string return all answer correctly from evaluated pith source; the script exits 42. Transparently exercises BOTH execution backends: in-memory tcc (registered addresses) and the temp-executable fallback (`pith_register_link_object` supplies the renamed `c_host_*` symbols to the child process) |

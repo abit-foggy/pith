@@ -563,7 +563,7 @@ static int cmd_run(const char **paths, size_t count)
     }
 
     int rc = engine_dispatch_run(asm_src, asm_path, NULL, 0, imports,
-                                 nimports);
+                                 nimports, NULL, 0);
 
     free(asm_src);
     free(imports);

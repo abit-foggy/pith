@@ -632,7 +632,9 @@ typedef struct {
  */
 int engine_dispatch_run(const char *asm_src, const char *asm_path,
                         const RuntimeSymbol *extra_syms, size_t nextra,
-                        const PithImportUnit *imports, size_t nimports);
+                        const PithImportUnit *imports, size_t nimports,
+                        const char *const *prebuilt_objs,
+                        size_t nprebuilt);
 
 /*
  * AOT: `as` the assembly into `obj_path`, then link against
