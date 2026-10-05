@@ -295,9 +295,9 @@ check test: all
 	@mkdir -p /tmp/opencode/pith_check/pkgsample
 	@printf 'payload\n' > /tmp/opencode/pith_check/pkgsample/readme.txt
 	@printf '[dependencies]\ndemo = "./pkgsample"\n' > /tmp/opencode/pith_check/pith.toml
-	HOME=/tmp/opencode/pith_check "$$PWD/pith" engine install 0.1.0 > /dev/null
-	HOME=/tmp/opencode/pith_check "$$PWD/pith" engine list | grep -q "0.1.0"
-	HOME=/tmp/opencode/pith_check "$$PWD/pith" engine use 0.1.0 > /dev/null
+	HOME=/tmp/opencode/pith_check "$$PWD/pith" engine install 0.2.0 > /dev/null
+	HOME=/tmp/opencode/pith_check "$$PWD/pith" engine list | grep -q "0.2.0"
+	HOME=/tmp/opencode/pith_check "$$PWD/pith" engine use 0.2.0 > /dev/null
 	HOME=/tmp/opencode/pith_check "$$PWD/pith" engine list | grep -q "active default"
 	cd /tmp/opencode/pith_check && HOME=/tmp/opencode/pith_check "$$OLDPWD/pith" pkg install > /dev/null
 	@test -f /tmp/opencode/pith_check/pith.lock

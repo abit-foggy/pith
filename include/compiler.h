@@ -62,7 +62,7 @@ static inline char *pith_mkdtemp(char *tmpl) {
 #endif
 #endif
 
-#define PITH_VERSION "0.1.0"
+#define PITH_VERSION "0.2.0"
 
 /* ------------------------------------------------------------------ */
 /* EOF debug-workspace overlay footer (pith build --embed-source)     */
