@@ -723,7 +723,7 @@ static int cmd_repl(void)
 
 static int cmd_build(const char **paths, size_t count,
                      const char *out_override, int embed_flag,
-                     int plugin_flag_param)
+                     int plugin_flag_param, int object_flag)
 {
     /* security default: stripped by default; embedding is triggered
        only by --embed-source or build.embedSource in pith.toml */
@@ -738,7 +738,9 @@ static int cmd_build(const char **paths, size_t count,
     }
 
     /* plugin mode: [toolchain].pithPlugin = yes (or the --plugin
-       flag) turns the build into an installable .ppkg artifact */
+       flag) turns the build into an installable .ppkg artifact.
+       --object uses the same exported-fn emission but writes the raw
+       object (the exact file the .ppkg bundles) instead. */
     int plugin_flag = plugin_flag_param;
 
     char author[128] = "";
@@ -940,6 +942,10 @@ static int cmd_build(const char **paths, size_t count,
     size_t nfns = 0;
     PithPluginInfo plugin;
     memset(&plugin, 0, sizeof(plugin));
+    /* --object uses the plugin emission path (fn declarations are
+       exported under the author scope) but writes the raw object */
+    if (object_flag)
+        plugin_flag = 1;
     plugin.enabled = plugin_flag != 0;
     plugin.author = author;
     plugin.module = module_name;
@@ -984,16 +990,19 @@ static int cmd_build(const char **paths, size_t count,
         size_t blen = strlen(base);
         if (blen > 3 && strcmp(base + blen - 3, ".pi") == 0)
             blen -= 3;
-        snprintf(out_path, sizeof(out_path), "%.*s", (int)blen, base);
+        snprintf(out_path, sizeof(out_path), "%.*s%s", (int)blen, base,
+                 object_flag ? ".o" : "");
     }
 
     /* plugin mode: assemble to an object and bundle it as .ppkg
-       (plugin.o + manifest); no executable link.
+       (plugin.o + manifest); no executable link. --object writes the
+       same assembled object to the output path and stops here.
        non-Darwin: the embedded tcc's built-in assembler (in-process)
        Darwin: clang's assembler */
     if (plugin_flag) {
         char pobj[4096];
-        snprintf(pobj, sizeof(pobj), "%s", obj_path);
+        snprintf(pobj, sizeof(pobj), "%s",
+                 object_flag ? out_path : obj_path);
 
         int asm_ok = 0;
 #if !defined(__APPLE__) && defined(PITH_HAVE_LIBTCC) && PITH_HAVE_LIBTCC
@@ -1025,6 +1034,17 @@ static int cmd_build(const char **paths, size_t count,
             cleanup_temp(ssa_path);
             cleanup_temp(asm_path);
             return 1;
+        }
+
+        /* --object: the raw plugin object is the deliverable */
+        if (object_flag) {
+            free(asm_src);
+            free(imports);
+            cleanup_temp(ssa_path);
+            cleanup_temp(asm_path);
+            printf("built object %s (%zu exported fn%s)\n", out_path,
+                   nfns, nfns == 1 ? "" : "s");
+            return 0;
         }
 
         /* write the manifest */
@@ -1357,6 +1377,8 @@ static void print_help(void)
            "    pith build <file.pi> [more.pi] [--embed-source] [-o out]\n"
            "                                 build a standalone native "
            "binary\n"
+           "        --plugin                   bundle an installable .ppkg plugin\n"
+           "        --object                   write the raw exported-fn object\n"
            "    pith decompile <file.pi>     print the generated QBE SSA "
            "IR\n"
            "    pith decompile <binary>      unpack an embedded debug "
@@ -1546,6 +1568,7 @@ static int pith_main(int argc, char **argv)
         const char *out_override = NULL;
         int embed_flag = 0;
         int plugin_flag = 0;
+        int object_flag = 0;
         const char *paths[64];
         size_t count = 0;
         for (int i = 2; i < argc && count < 64; i++) {
@@ -1561,6 +1584,10 @@ static int pith_main(int argc, char **argv)
                 plugin_flag = 1;
                 continue;
             }
+            if (strcmp(argv[i], "--object") == 0) {
+                object_flag = 1;
+                continue;
+            }
             paths[count++] = argv[i];
         }
         if (count == 0) {
@@ -1568,7 +1595,7 @@ static int pith_main(int argc, char **argv)
             return 2;
         }
         return cmd_build(paths, count, out_override, embed_flag,
-                         plugin_flag);
+                         plugin_flag, object_flag);
     }
     if (strcmp(cmd, "decompile") == 0) {
         if (argc < 3) {
