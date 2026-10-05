@@ -27,9 +27,10 @@ linker.
 
 | Flag | Description |
 |---|---|
-| `-o <path>` | Output path (default: input basename sans `.pi`) |
+| `-o <path>` | Output path (default: input basename sans `.pi`, or `.o` for `--object`) |
 | `--embed-source` | Attach the workspace as a tar overlay with a `PITHDEBG` footer |
 | `--plugin` | Build an installable plugin (.ppkg) instead of an executable |
+| `--object` | Write the raw plugin-mode object file instead of bundling into .ppkg |
 
 `--embed-source` can also be set permanently via `build.embedSource =
 true` in `pith.toml`; `--plugin` via `toolchain.pithPlugin = "yes"`.
@@ -65,6 +66,17 @@ end
 
 See [pith pkg](pkg.md) for installing and
 [Namespaces](../namespaces.md) for the resolution rules.
+
+## Raw object emission (--object)
+
+With `--object`, `pith build` lowers and compiles the source in plugin mode (exporting functions as `c_<author>_<module>_<fn>`) but writes the raw relocatable object directly to the output path without packaging a `.ppkg` tar bundle or manifest.
+
+```sh
+pith build plugin.pi --object -o plugin.o
+# built object plugin.o (1 exported fn)
+```
+
+This raw object can be linked directly by host C programs (for example, as a fallback link object when embedding Pith via `pith_register_link_object`).
 
 ## Multi-file (WPSSAC)
 

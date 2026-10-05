@@ -253,6 +253,83 @@ Closes the active socket descriptor and releases system resources.
 
 ---
 
+## Namespace: `str`
+
+The `str` namespace provides byte-oriented string queries, substring matching, and ASCII case-folding routines. All returned strings are newly allocated ARC-managed values (+1 reference).
+
+### Functions
+
+```pith
+fn length(s: string) int
+```
+
+Returns the active byte length of `s`.
+
+- **Parameters**:
+  - `s`: Input string.
+- **Return value**:
+  - Integer byte count (from the `PithValue.length` header field).
+
+```pith
+fn contains(s: string, sub: string) int
+```
+
+Tests whether `sub` is contained as a contiguous substring within `s`.
+
+- **Parameters**:
+  - `s`: Haystack string.
+  - `sub`: Needle substring.
+- **Return value**:
+  - `1` if `sub` is found, `0` otherwise.
+
+```pith
+fn startsWith(s: string, prefix: string) int
+```
+
+Tests whether `s` begins with the prefix bytes `prefix`.
+
+- **Parameters**:
+  - `s`: Target string.
+  - `prefix`: Prefix substring.
+- **Return value**:
+  - `1` if `s` begins with `prefix`, `0` otherwise.
+
+```pith
+fn endsWith(s: string, suffix: string) int
+```
+
+Tests whether `s` terminates with the suffix bytes `suffix`.
+
+- **Parameters**:
+  - `s`: Target string.
+  - `suffix`: Suffix substring.
+- **Return value**:
+  - `1` if `s` ends with `suffix`, `0` otherwise.
+
+```pith
+fn upper(s: string) string
+```
+
+Allocates and returns a new string where ASCII lowercase letters `a`-`z` are mapped to uppercase `A`-`Z`. Non-ASCII bytes and other characters remain unchanged.
+
+- **Parameters**:
+  - `s`: Input string.
+- **Return value**:
+  - Newly allocated ARC string (+1 reference).
+
+```pith
+fn lower(s: string) string
+```
+
+Allocates and returns a new string where ASCII uppercase letters `A`-`Z` are mapped to lowercase `a`-`z`. Non-ASCII bytes and other characters remain unchanged.
+
+- **Parameters**:
+  - `s`: Input string.
+- **Return value**:
+  - Newly allocated ARC string (+1 reference).
+
+---
+
 ## Memory & ABI Specification
 
 ### PithValue Representation

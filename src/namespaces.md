@@ -7,6 +7,7 @@ These built-in tools are organized into **namespaces**:
 - **`os`**: Check system details and platform kernels
 - **`proc`**: Control processes, read CLI arguments, environment variables, and process ID
 - **`net`**: Send and receive data over TCP networks
+- **`str`**: Search, inspect, and transform ASCII strings
 
 ---
 
@@ -188,12 +189,56 @@ end
 
 ---
 
-## 4. How Namespaces Work Under the Hood
+## 5. String Tools: `str`
+
+The `str` namespace provides byte-oriented string queries, substring tests, and ASCII case folding:
+
+```pith
+greeting = "Hello, World!"
+
+# Query byte length
+len = str.length(greeting)
+print len  # 13
+
+# Substring and prefix/suffix queries
+if str.contains(greeting, "World")
+    print "Found World!"
+end
+
+if str.startsWith(greeting, "Hello")
+    print "Starts with Hello"
+end
+
+if str.endsWith(greeting, "!")
+    print "Ends with exclamation"
+end
+
+# Case transformation (ASCII)
+shout = str.upper(greeting)
+whisper = str.lower(greeting)
+print shout    # "HELLO, WORLD!"
+print whisper  # "hello, world!"
+```
+
+### `str` Reference
+
+| Function | What it does | Returns |
+|---|---|---|
+| `str.length(s)` | Payload byte length | Integer length |
+| `str.contains(s, sub)` | Substring search | `1` if found, `0` otherwise |
+| `str.startsWith(s, prefix)` | Prefix match | `1` if true, `0` otherwise |
+| `str.endsWith(s, suffix)` | Suffix match | `1` if true, `0` otherwise |
+| `str.upper(s)` | Uppercase copy (ASCII) | New string |
+| `str.lower(s)` | Lowercase copy (ASCII) | New string |
+
+---
+
+## 6. How Namespaces Work Under the Hood
 
 Pith uses a simple, predictable hierarchy:
 
-1. **`root.fs.*` / `root.os.*` / `root.net.*`**: The built-in runtime functions directly. They can never be overridden.
-2. **`fs.*` / `os.*` / `net.*`**: The active tools you use every day. If you import a module that enhances one of these, the enhancement applies here.
+1. **`root.fs.*` / `root.os.*` / `root.proc.*` / `root.net.*` / `root.str.*`**: The built-in runtime functions directly. They can never be overridden.
+2. **`fs.*` / `os.*` / `proc.*` / `net.*` / `str.*`**: The active tools you use every day. If you import a module that enhances one of these, the enhancement applies here.
 3. **`alice.fs.*`**: If you import a custom package from another developer (like Alice), you can call their specific version directly by author name!
 
 All strings, buffers, and data returned by built-in namespaces are automatically managed and cleaned up for you with zero performance overhead.
