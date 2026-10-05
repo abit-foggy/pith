@@ -40,7 +40,7 @@ DEFINES = $(POSIXDEF)
 PITH_OBJS = src/main.o src/lexer.o src/parser.o src/gen_qbe.o \
 	src/engine_proxy.o src/pkg_manager.o src/config.o src/tar.o \
 	src/pith_embed.o src/cffi.o
-RUNTIME_OBJS = runtime/memory.o runtime/os_fs.o runtime/network.o
+RUNTIME_OBJS = runtime/memory.o runtime/os_fs.o runtime/network.o runtime/strings.o
 RUNTIME_LIB = runtime/libruntime.a
 PITH = pith
 
@@ -213,6 +213,10 @@ check test: all
 	@! ./test_os_net | grep -q BROKEN
 	./test_os_net | grep -q "os_net: done"
 	@rm -f test_os_net tests/test_scratch.txt
+	# [STDLIB] the str builtin namespace: length, contains, prefix/
+	# suffix tests, ASCII case folding, ARC-clean string returns
+	@! ./pith run tests/test_str.pi 2>/dev/null | grep -q BROKEN
+	./pith run tests/test_str.pi 2>/dev/null | grep -q "str namespace ok"
 	# [BUILD] --object writes the raw exported-fn object
 	@printf 'fn probe()\n    return 41\nend\n' > tests/gen_obj.pi
 	./pith build tests/gen_obj.pi --object -o tests/gen_obj.o > /dev/null
@@ -280,7 +284,7 @@ check test: all
 		tests/harness/embed_host.c \
 		src/lexer.o src/parser.o src/gen_qbe.o src/engine_proxy.o \
 		src/pith_embed.o src/tar.o src/config.o src/cffi.o \
-		runtime/memory.o runtime/os_fs.o runtime/network.o \
+		runtime/memory.o runtime/os_fs.o runtime/network.o runtime/strings.o \
 		tests/harness/embed_host_impl.o \
 		$(LIBQBE) $(LIBTCC) -ldl -o tests/harness/embed_host
 	./tests/harness/embed_host tests/harness/embed_host_impl.o

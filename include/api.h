@@ -120,6 +120,28 @@ int32_t pith_rt_net_connect(int32_t fd, PithValue *host, int32_t port);
 int32_t pith_rt_net_send(int32_t fd, PithValue *data);
 PithValue *pith_rt_net_recv(int32_t fd, int32_t max_len);
 
+/* ------------------------------------------------------------------ */
+/* String primitives (str.*) - runtime/strings.c                      */
+/* ------------------------------------------------------------------ */
+
+/* Payload byte length of a string. */
+int32_t pith_str_length(PithValue *s);
+
+/* 1 when `sub` appears anywhere inside `s`, 0 otherwise. */
+int32_t pith_str_contains(PithValue *s, PithValue *sub);
+
+/* 1 when `s` begins with `prefix`, 0 otherwise. */
+int32_t pith_str_starts_with(PithValue *s, PithValue *prefix);
+
+/* 1 when `s` ends with `suffix`, 0 otherwise. */
+int32_t pith_str_ends_with(PithValue *s, PithValue *suffix);
+
+/* New string with ASCII letters folded to upper case (+1 reference). */
+PithValue *pith_str_upper(PithValue *s);
+
+/* New string with ASCII letters folded to lower case (+1 reference). */
+PithValue *pith_str_lower(PithValue *s);
+
 #ifdef __cplusplus
 }
 #endif

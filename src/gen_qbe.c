@@ -536,6 +536,15 @@ static const OsMember net_members[] = {
     { "close",                  "$pith_net_close",            PITH_VALUE_INT,    1, { PITH_FFI_WORD } },
 };
 
+static const OsMember str_members[] = {
+    { "length",                 "$pith_str_length",           PITH_VALUE_INT,    1, { PITH_FFI_LONG } },
+    { "contains",               "$pith_str_contains",         PITH_VALUE_BOOL,   2, { PITH_FFI_LONG, PITH_FFI_LONG } },
+    { "startsWith",             "$pith_str_starts_with",      PITH_VALUE_BOOL,   2, { PITH_FFI_LONG, PITH_FFI_LONG } },
+    { "endsWith",               "$pith_str_ends_with",        PITH_VALUE_BOOL,   2, { PITH_FFI_LONG, PITH_FFI_LONG } },
+    { "upper",                  "$pith_str_upper",            PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
+    { "lower",                  "$pith_str_lower",            PITH_VALUE_STRING, 1, { PITH_FFI_LONG } },
+};
+
 static const OsMember *os_member_find(const char *name)
 {
     for (size_t i = 0; i < sizeof(os_members) / sizeof(os_members[0]); i++)
@@ -568,6 +577,14 @@ static const OsMember *net_member_find(const char *name)
     return NULL;
 }
 
+static const OsMember *str_member_find(const char *name)
+{
+    for (size_t i = 0; i < sizeof(str_members) / sizeof(str_members[0]); i++)
+        if (strcmp(str_members[i].member, name) == 0)
+            return &str_members[i];
+    return NULL;
+}
+
 /* Does the builtin os namespace expose `name`? (public: used by the
    import discovery for override warnings) */
 int pith_os_member_exists(const char *name)
@@ -588,6 +605,11 @@ int pith_fs_member_exists(const char *name)
 int pith_net_member_exists(const char *name)
 {
     return net_member_find(name) != NULL;
+}
+
+int pith_str_member_exists(const char *name)
+{
+    return str_member_find(name) != NULL;
 }
 
 static ExprResult gen_expr(Codegen *g, ASTNode *n);
@@ -802,6 +824,13 @@ static NsResolved ns_resolve(Codegen *g, const char *ns_path,
                     r.om = nm;
                     return r;
                 }
+            } else if (strcmp(module, "str") == 0) {
+                const OsMember *sm = str_member_find(member);
+                if (sm) {
+                    r.kind = NS_FOUND_BUILTIN;
+                    r.om = sm;
+                    return r;
+                }
             }
             r.kind = NS_NOT_FOUND;
             return r;
@@ -862,6 +891,13 @@ static NsResolved ns_resolve(Codegen *g, const char *ns_path,
         if (nm) {
             r.kind = NS_FOUND_BUILTIN;
             r.om = nm;
+            return r;
+        }
+    } else if (strcmp(ns_path, "str") == 0) {
+        const OsMember *sm = str_member_find(member);
+        if (sm) {
+            r.kind = NS_FOUND_BUILTIN;
+            r.om = sm;
             return r;
         }
     }
@@ -1247,7 +1283,7 @@ static ExprResult gen_member_access(Codegen *g, ASTNode *n)
         cg_error(g, m->base->loc, 2,
                  "unknown namespace in member access "
                  "(namespaces are `os.*`, `proc.*`, `fs.*`, `net.*`, "
-                 "`root.*`, or imported modules)", "");
+                 "`str.*`, `root.*`, or imported modules)", "");
         return expr_dummy();
     }
     const char *member = m->member;

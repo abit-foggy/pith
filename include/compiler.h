@@ -520,6 +520,7 @@ int pith_os_member_exists(const char *name);
 int pith_proc_member_exists(const char *name);
 int pith_fs_member_exists(const char *name);
 int pith_net_member_exists(const char *name);
+int pith_str_member_exists(const char *name);
 
 /* ------------------------------------------------------------------ */
 /* QBE code generator (src/gen_qbe.c)                                 */

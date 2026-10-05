@@ -17,6 +17,7 @@ runtime semantics.
 | `test_fn.pi` | [CODEGEN] | exit 0; fn decls lower to private functions, return path verified |
 | `test_err1.pi` | [PARSER] | compile error (undeclared identifier) |
 | `test_err2.pi` | [PARSER] | compile error (string + integer concatenation) |
+| `test_str.pi` | [STDLIB] | exit 0; `str.*` builtin namespace (`length`, `contains`, `startsWith`, `endsWith`, `upper`, `lower`), ASCII semantics, ARC-clean returns |
 | `build --object` | [BUILD] | `pith build <file.pi> --object -o <file.o>` writes raw plugin-mode object without `.ppkg` tar wrapper, symbols exported as `c_<author>_<mod>_<fn>` |
 | embed/decompile roundtrip | [PACKAGE] | default build stripped of `PITHDEBG`; `--embed-source` attaches it; `pith decompile <bin>` restores `./restored_workspace/` |
 

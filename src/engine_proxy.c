@@ -532,6 +532,13 @@ static const RuntimeSymbol runtime_syms[] = {
     { "pith_rt_net_connect",       (const void *)pith_rt_net_connect       },
     { "pith_rt_net_send",          (const void *)pith_rt_net_send          },
     { "pith_rt_net_recv",          (const void *)pith_rt_net_recv          },
+    /* str.* builtin namespace (runtime/strings.c) */
+    { "pith_str_length",           (const void *)pith_str_length           },
+    { "pith_str_contains",         (const void *)pith_str_contains         },
+    { "pith_str_starts_with",      (const void *)pith_str_starts_with      },
+    { "pith_str_ends_with",        (const void *)pith_str_ends_with        },
+    { "pith_str_upper",            (const void *)pith_str_upper            },
+    { "pith_str_lower",            (const void *)pith_str_lower            },
 };
 
 #define NSYMS (sizeof(runtime_syms) / sizeof(runtime_syms[0]))

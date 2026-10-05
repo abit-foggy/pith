@@ -1,0 +1,28 @@
+mut ok = 0
+if str.length("pith") == 4
+    mut ok = ok + 1
+end
+if str.contains("hello, thorn", "thorn") == 1
+    mut ok = ok + 1
+end
+if str.startsWith("hello", "he") == 1
+    mut ok = ok + 1
+end
+if str.endsWith("hello", "lo") == 1
+    mut ok = ok + 1
+end
+if str.upper("aBc7x") == "ABC7X"
+    mut ok = ok + 1
+end
+if str.lower("aBc7X") == "abc7x"
+    mut ok = ok + 1
+end
+print str.length("deterministic")
+print str.upper("native")
+print str.lower("STRINGS")
+if ok == 6
+    print "str namespace ok"
+end
+if ok != 6
+    proc.exit(1)
+end
