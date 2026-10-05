@@ -17,7 +17,10 @@ CC = cc
 AR = ar
 CFLAGS = -std=c99 -O2 -Wall -Wextra -Wno-unused-parameter -Iinclude
 LDFLAGS =
-POSIXDEF = -D_POSIX_C_SOURCE=200809L
+# _DEFAULT_SOURCE: glibc >= 2.43 moved realpath/mkdtemp out of the
+# strict _POSIX_C_SOURCE namespace (they left POSIX in the 2024
+# edition); the strict build breaks on GCC 16 without it.
+POSIXDEF = -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
 
 VENDOR_TCC = vendor/tcc
 LIBTCC = $(VENDOR_TCC)/libtcc.a
@@ -88,8 +91,10 @@ $(RUNTIME_OBJS): vendor/tcc/.pith-patched
 vendor/qbe/.pith-patched: patches/qbe-embed.patch vendor/qbe/parse.c
 	if grep -q "qbe_err_jmp" vendor/qbe/parse.c; then \
 		touch vendor/qbe/.pith-patched; \
-	else \
+	elif command -v patch >/dev/null 2>&1; then \
 		cd vendor/qbe && patch -p1 -N < ../../patches/qbe-embed.patch && touch .pith-patched; \
+	else \
+		cd vendor/qbe && git apply ../../patches/qbe-embed.patch && touch .pith-patched; \
 	fi
 
 $(LIBQBE): vendor/qbe/.pith-patched
@@ -122,8 +127,10 @@ $(VENDOR_QBE)/qbe: vendor/qbe/.pith-patched
 vendor/tcc/.pith-patched: patches/tcc-scalar-sse.patch vendor/tcc/x86_64-asm.h
 	if grep -q "movsd" vendor/tcc/x86_64-asm.h; then \
 		touch vendor/tcc/.pith-patched; \
-	else \
+	elif command -v patch >/dev/null 2>&1; then \
 		cd vendor/tcc && patch -p1 -N < ../../patches/tcc-scalar-sse.patch && touch .pith-patched; \
+	else \
+		cd vendor/tcc && git apply ../../patches/tcc-scalar-sse.patch && touch .pith-patched; \
 	fi
 
 vendor/tcc/config.mak: vendor/tcc/configure
