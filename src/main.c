@@ -304,6 +304,9 @@ static char *compile_frontend(const char **paths, size_t count,
                             snprintf(dir, sizeof(dir), ".");
                         snprintf(resolved, sizeof(resolved), "%s/%s",
                                  dir, ipath);
+                        if (access(resolved, F_OK) != 0 && access(ipath, F_OK) == 0) {
+                            snprintf(resolved, sizeof(resolved), "%s", ipath);
+                        }
                     }
 
                     /* skip duplicate imports of the same unit */
