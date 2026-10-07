@@ -837,6 +837,7 @@ static int run_temp_exec(const char *asm_path,
     unlink(exe_path);
     if (st == -1)
         return -1;
+#ifndef _WIN32
     if (WIFSIGNALED(st)) {
         /* the script died by a signal: die by the same one so the
            fallback path preserves the in-memory execution semantics
@@ -847,6 +848,9 @@ static int run_temp_exec(const char *asm_path,
     }
     if (WIFEXITED(st))
         return WEXITSTATUS(st);
+#else
+    return st;
+#endif
     return -1;
 }
 

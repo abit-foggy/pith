@@ -1,6 +1,6 @@
 [submodule "vendor/tcc"]
 	path = vendor/tcc
-	url = https://repo.or.cz/r/tinycc.git
+	url = https://github.com/abit-foggy/tinycc.git
 	branch = mob
 [submodule "vendor/qbe"]
 	path = vendor/qbe

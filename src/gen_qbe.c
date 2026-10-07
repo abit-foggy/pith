@@ -2114,6 +2114,8 @@ static void emit_fn_body(Codegen *g, PendingFn *pf)
     EMIT(") {\n");
     EMIT("@fn_%s.start\n", pf->clean);
 
+    Scope *saved_scope = g->scope;
+    g->scope = NULL;
     cg_scope_push(g);
 
     for (size_t i = 0; i < decl->param_count; i++) {
@@ -2152,6 +2154,7 @@ static void emit_fn_body(Codegen *g, PendingFn *pf)
     EMIT("}\n\n");
 
     cg_scope_pop(g);
+    g->scope = saved_scope;
 
     if (dead)
         note(g, pf->node->loc, 2,
