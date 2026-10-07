@@ -220,7 +220,7 @@ check test: all
 	# [BUILD] --object writes the raw exported-fn object
 	@printf 'fn probe()\n    return 41\nend\n' > tests/gen_obj.pi
 	./pith build tests/gen_obj.pi --object -o tests/gen_obj.o > /dev/null
-	@nm tests/gen_obj.o | grep -q " T c_plugin_probe"
+	@nm tests/gen_obj.o | grep -qE " T _?c_plugin_probe"
 	@rm -f tests/gen_obj.pi tests/gen_obj.o
 	# [BUILTINS] proc.* namespace (JIT, AOT, and exit code)
 	@! ./pith run tests/test_proc.pi 2>/dev/null | grep -q BROKEN

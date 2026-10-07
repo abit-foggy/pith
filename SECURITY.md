@@ -6,9 +6,9 @@ Security updates are applied to the active release stream and rolling nightly bu
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | Yes       |
+| 0.2.x   | Yes       |
 | nightly | Yes       |
-| < 0.1.0 | No        |
+| < 0.2.0 | No        |
 
 ## Reporting a Vulnerability
 
@@ -39,3 +39,12 @@ Pith is designed with several defensive security principles in mind:
 - **Archive Path Traversal**: Tar archive extraction rejects paths containing directory traversal (`..`), absolute roots, or paths escaping the extraction destination.
 - **Reference Count Safety**: The Automated Reference Counting (ARC) runtime uses atomic operations on multithreaded targets and provides cycle breaking APIs to prevent memory leaks and dangling pointers.
 - **FFI Boundary**: Native C imports follow explicit ownership and borrow semantics documented in `<pith.h>`.
+
+## Authorship & Review
+
+The majority of the code in this repository was written by an AI. All
+architectural design was made by a human, and every change was
+reviewed by both a human and an AI for flaws before it landed.
+Security-sensitive components (parsing, code generation, archive
+extraction, the FFI boundary, and subprocess handling) receive
+additional review scrutiny.
