@@ -17,6 +17,8 @@
 #ifndef PITH_EMBED_H
 #define PITH_EMBED_H
 
+#include "compiler.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -69,6 +71,13 @@ int pith_register_ns_fn(PithContext *ctx, const char *ns,
  * uses the registered addresses and needs no object.
  */
 int pith_register_link_object(PithContext *ctx, const char *obj_path);
+
+/*
+ * Register a pre-built plugin unit (see PithImportUnit.is_plugin) so
+ * the code generator emits calls against its manifest fn table and
+ * the engine links its object.  The unit is copied.
+ */
+int pith_register_import(PithContext *ctx, const PithImportUnit *unit);
 
 /*
  * Lex, parse and lower `source` to QBE IR, then execute it in-memory

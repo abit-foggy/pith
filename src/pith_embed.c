@@ -230,6 +230,27 @@ int pith_register_ns_fn(PithContext *ctx, const char *ns,
     return 0;
 }
 
+int pith_register_import(PithContext *ctx, const PithImportUnit *unit)
+{
+    if (!ctx || !unit || !unit->ns[0]) {
+        fprintf(stderr, "pith embed: import registration needs a unit "
+                        "with a namespace\n");
+        return -1;
+    }
+    if (unit_find(ctx, unit->ns)) {
+        fprintf(stderr, "pith embed: namespace `%s` is already "
+                        "registered\n", unit->ns);
+        return -1;
+    }
+    PithImportUnit *u = unit_new(ctx, unit->ns);
+    if (!u) {
+        fprintf(stderr, "pith embed: out of memory\n");
+        return -1;
+    }
+    *u = *unit;
+    return 0;
+}
+
 int pith_register_link_object(PithContext *ctx, const char *obj_path)
 {
     if (!ctx || !obj_path || !*obj_path) {
