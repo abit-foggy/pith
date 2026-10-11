@@ -929,6 +929,12 @@ static int cmd_build(const char **paths, size_t count,
                             :                  PITH_FFI_LONG;
                     fn->nparams = (size_t)nparams;
                     fn->ret_pith_value = false;
+                    /* pith's import convention: Pith values cross as
+                       pointers (VOID params would silently drop the
+                       call in codegen) */
+                    for (size_t p = 0; p < fn->nparams &&
+                         p < PITH_FFI_MAX_PARAMS; p++)
+                        fn->params[p] = PITH_FFI_LONG;
                 }
                 fclose(mf);
             }
